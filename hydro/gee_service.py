@@ -44,58 +44,47 @@ def init_gee():
     if _gee_initialized:
         return True
 
+    project_id = os.environ.get('GEE_PROJECT_ID', 'hydrolink-481811')
+    key_info_str = ""
+
     try:
-        # 서비스 계정 키 (JSON 문자열 또는 파일 경로)
-        key_json = os.environ.get('GEE_SERVICE_ACCOUNT_JSON', '') or os.environ.get('GEE_SERVICE_ACCOUNT_KEY', '')
-        project_id = os.environ.get('GEE_PROJECT_ID', 'hydrolink-481811')
+        import base64
 
-        if key_json:
-            # JSON 문자열인 경우 (Railway 환경변수)
-            if key_json.strip().startswith('{'):
-                # Railway가 \n을 실제 줄바꿈으로 변환하는 문제 해결
-                # private_key 내의 실제 줄바꿈을 \n 문자열로 복원
-                import re
-                # "private_key": "..." 부분에서 실제 줄바꿈을 \n으로 변환
-                def fix_private_key(match):
-                    pk = match.group(1)
-                    pk_fixed = pk.replace('\n', '\\n')
-                    return f'"private_key": "{pk_fixed}"'
+        # 방법 1: Base64 인코딩된 개별 변수 (권장 - Railway용)
+        client_email = os.environ.get('GEE_CLIENT_EMAIL', '')
+        private_key_b64 = os.environ.get('GEE_PRIVATE_KEY', '')
 
-                key_json_fixed = re.sub(
-                    r'"private_key":\s*"(.*?)"(?=,\s*"client_email")',
-                    fix_private_key,
-                    key_json,
-                    flags=re.DOTALL
-                )
+        if client_email and private_key_b64:
+            private_key = base64.b64decode(private_key_b64).decode('utf-8')
+            key_info = {
+                'type': 'service_account',
+                'project_id': project_id,
+                'client_email': client_email,
+                'private_key': private_key
+            }
+            key_info_str = json.dumps(key_info)
+            credentials = ee.ServiceAccountCredentials(client_email, key_data=key_info_str)
+            ee.Initialize(credentials, project=project_id)
 
-                key_info = json.loads(key_json_fixed)
-                credentials = ee.ServiceAccountCredentials(
-                    key_info['client_email'],
-                    key_data=key_json_fixed  # JSON 문자열 전달
-                )
-                ee.Initialize(credentials, project=project_id)
+        # 방법 2: 파일 경로 (로컬 개발용)
+        else:
+            key_path = os.environ.get('GEE_SERVICE_ACCOUNT_JSON', '') or os.environ.get('GEE_SERVICE_ACCOUNT_KEY', '')
 
-            # 파일 경로인 경우
-            elif os.path.exists(key_json):
-                with open(key_json) as f:
-                    key_str = f.read()
-                key_info = json.loads(key_str)
-                credentials = ee.ServiceAccountCredentials(
-                    key_info['client_email'],
-                    key_data=key_str  # JSON 문자열 전달
-                )
+            if key_path and os.path.exists(key_path):
+                with open(key_path) as f:
+                    key_info_str = f.read()
+                key_info = json.loads(key_info_str)
+                credentials = ee.ServiceAccountCredentials(key_info['client_email'], key_data=key_info_str)
                 ee.Initialize(credentials, project=project_id)
             else:
-                raise ValueError("GEE_SERVICE_ACCOUNT_JSON이 유효하지 않습니다")
-        else:
-            # 기본 인증 (로컬 개발용 - gcloud auth 필요)
-            ee.Initialize(project=project_id)
+                # 기본 인증 (gcloud auth 필요)
+                ee.Initialize(project=project_id)
 
         _gee_initialized = True
         return True
 
     except Exception as e:
-        _gee_init_error = f"{e} | PROJECT_ID={project_id} | KEY_SET={bool(key_json)} | KEY_LEN={len(key_json) if key_json else 0}"
+        _gee_init_error = f"{e} | PROJECT={project_id} | EMAIL={bool(client_email)} | KEY_B64={bool(private_key_b64)}"
         logger.error(f"GEE 초기화 실패: {_gee_init_error}")
         return False
 
