@@ -1,5 +1,5 @@
-# Core dependencies for Render deployment
-django>=5.0,<6.0
+# Core
+django==6.0
 dj-database-url>=2.0
 django-htmx>=1.17
 gunicorn>=21.0
@@ -7,9 +7,9 @@ whitenoise>=6.6
 psycopg2-binary>=2.9
 
 # Data processing
-numpy>=1.26,<2.1
-pandas>=2.1,<2.3
-scipy>=1.11,<1.14
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
 openpyxl>=3.1
 xlrd>=2.0
 
@@ -17,12 +17,8 @@ xlrd>=2.0
 reportlab>=4.0
 pillow>=10.0
 
-# HTTP requests (HRFCO API)
+# HTTP requests
 requests>=2.31
-
-# Dev dependencies (optional)
-# pytest>=8.0
-# pytest-django>=4.5
 
 # GEE - 로컬 개발용 (pip install earthengine-api)
 # earthengine-api
