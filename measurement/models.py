@@ -1,8 +1,16 @@
 from django.db import models
+from django.conf import settings
 
 
 class Station(models.Model):
     """관측소"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='stations',
+        verbose_name='소유자'
+    )
     name = models.CharField(max_length=100, verbose_name='지점명')
     river_name = models.CharField(max_length=100, blank=True, verbose_name='하천명')
     dm_number = models.CharField(max_length=50, blank=True, verbose_name='DM번호')
@@ -25,6 +33,13 @@ class RatingCurve(models.Model):
         ('close', '저류(Close)'),
     ]
 
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='rating_curves',
+        verbose_name='소유자'
+    )
     station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='rating_curves', verbose_name='관측소')
     year = models.IntegerField(verbose_name='연도')
     curve_type = models.CharField(max_length=10, choices=CURVE_TYPE_CHOICES, default='open', verbose_name='곡선유형')
@@ -161,6 +176,13 @@ class BaseflowAnalysis(models.Model):
         ('sliding_interval', '이동간격법'),
     ]
 
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='baseflow_analyses',
+        verbose_name='소유자'
+    )
     station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='baseflow_analyses', verbose_name='관측소')
 
     # 분석 기간

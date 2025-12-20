@@ -978,6 +978,7 @@ def save_baseflow_analysis(request):
 
         # BaseflowAnalysis 생성
         analysis = BaseflowAnalysis.objects.create(
+            user=request.user,  # 사용자 연결
             station=station,
             start_date=datetime.strptime(start_date, '%Y-%m-%d').date(),
             end_date=datetime.strptime(end_date, '%Y-%m-%d').date(),
@@ -988,6 +989,17 @@ def save_baseflow_analysis(request):
             baseflow=statistics.get('baseflow'),
             direct_runoff=statistics.get('direct_runoff'),
             bfi=statistics.get('bfi'),
+        )
+
+        # 활동 로그 기록
+        from core.tracking import log_activity
+        log_activity(
+            user=request.user,
+            action_type='save',
+            detail=f'기저유출 분석 저장: {station.name} ({start_date}~{end_date})',
+            related_object=analysis,
+            request=request,
+            extra_data={'method': method, 'bfi': statistics.get('bfi')}
         )
 
         # 일별 데이터 저장
@@ -1036,6 +1048,17 @@ def export_baseflow_pdf(request, pk):
         # 응답 생성
         response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
         response['Content-Disposition'] = f"attachment; filename*=UTF-8''{safe_filename}"
+
+        # 활동 로그 기록
+        if request.user.is_authenticated:
+            from core.tracking import log_activity
+            log_activity(
+                user=request.user,
+                action_type='export_pdf',
+                detail=f'기저유출 PDF 다운로드: {station_name}',
+                related_object=analysis,
+                request=request
+            )
 
         return response
 
