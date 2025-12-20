@@ -23,7 +23,7 @@ from .gee_service import (
 
 
 def dashboard(request):
-    """실시간 수문 데이터 대시보드"""
+    """실시간 수문 데이터 대시보드 - 비동기 로딩"""
     # 쿠키에서 선택된 관측소 가져오기 (없으면 기본값)
     wl_selected = request.COOKIES.get('hydro_wl_stations', '')
     rf_selected = request.COOKIES.get('hydro_rf_stations', '')
@@ -31,16 +31,16 @@ def dashboard(request):
     wl_codes = wl_selected.split(',') if wl_selected else DEFAULT_STATIONS['waterlevel']
     rf_codes = rf_selected.split(',') if rf_selected else DEFAULT_STATIONS['rainfall']
 
-    data = get_stations_data(wl_codes, rf_codes)
-
+    # 페이지만 먼저 렌더링, 데이터는 AJAX로 로드
     return render(request, 'hydro/dashboard.html', {
-        'waterlevel_data': data['waterlevel'],
-        'rainfall_data': data['rainfall'],
-        'updated_at': data['updated_at'],
+        'waterlevel_data': [],
+        'rainfall_data': [],
+        'updated_at': '로딩 중...',
         'all_waterlevel_stations': ALL_STATIONS['waterlevel'],
         'all_rainfall_stations': ALL_STATIONS['rainfall'],
         'selected_wl_stations': wl_codes,
         'selected_rf_stations': rf_codes,
+        'async_load': True,
     })
 
 

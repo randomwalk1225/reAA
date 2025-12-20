@@ -176,7 +176,22 @@
                     <div class="update-time mt-2" x-text="item.time"></div>
                 </div>
             </template>
-            <div x-show="waterlevelData.length === 0" class="col-span-full text-center py-8 text-gray-500">
+            <!-- 로딩 스켈레톤 -->
+            <template x-if="isLoading && waterlevelData.length === 0">
+                <template x-for="i in 5">
+                    <div class="data-card bg-white rounded-xl shadow-sm border p-4 animate-pulse">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="h-4 bg-gray-200 rounded w-20"></div>
+                            <div class="h-5 bg-blue-100 rounded-full w-10"></div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="h-10 bg-gray-200 rounded w-24"></div>
+                        </div>
+                        <div class="h-3 bg-gray-200 rounded w-32"></div>
+                    </div>
+                </template>
+            </template>
+            <div x-show="!isLoading && waterlevelData.length === 0" class="col-span-full text-center py-8 text-gray-500">
                 선택된 수위 관측소가 없습니다.
             </div>
         </div>
@@ -208,7 +223,22 @@
                     <div class="update-time mt-2" x-text="item.time"></div>
                 </div>
             </template>
-            <div x-show="rainfallData.length === 0" class="col-span-full text-center py-8 text-gray-500">
+            <!-- 로딩 스켈레톤 -->
+            <template x-if="isLoading && rainfallData.length === 0">
+                <template x-for="i in 5">
+                    <div class="data-card bg-white rounded-xl shadow-sm border p-4 animate-pulse">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="h-4 bg-gray-200 rounded w-20"></div>
+                            <div class="h-5 bg-cyan-100 rounded-full w-10"></div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="h-10 bg-gray-200 rounded w-24"></div>
+                        </div>
+                        <div class="h-3 bg-gray-200 rounded w-32"></div>
+                    </div>
+                </template>
+            </template>
+            <div x-show="!isLoading && rainfallData.length === 0" class="col-span-full text-center py-8 text-gray-500">
                 선택된 강수 관측소가 없습니다.
             </div>
         </div>
@@ -284,7 +314,7 @@ function hydroDashboard() {
         waterlevelData: INITIAL_WATERLEVEL,
         rainfallData: INITIAL_RAINFALL,
         updatedAt: '{{ updated_at }}',
-        isLoading: false,
+        isLoading: {% if async_load %}true{% else %}false{% endif %},
         refreshInterval: null,
         showSelector: false,
 
@@ -297,6 +327,11 @@ function hydroDashboard() {
         selectedRfStations: [...INITIAL_RF_STATIONS],
 
         init() {
+            // 비동기 로딩: 페이지 로드 후 데이터 가져오기
+            {% if async_load %}
+            this.refresh();
+            {% endif %}
+
             // 2분마다 자동 갱신
             this.refreshInterval = setInterval(() => {
                 this.refresh();
