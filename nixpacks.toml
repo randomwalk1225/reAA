@@ -3,7 +3,7 @@
 nixPkgs = ["python312", "uv"]
 
 [phases.install]
-cmds = ["uv pip install --system -r pyproject.toml"]
+cmds = ["uv venv /app/.venv && uv pip install -r pyproject.toml"]
 
 [start]
-cmd = "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "/app/.venv/bin/python manage.py migrate && /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
