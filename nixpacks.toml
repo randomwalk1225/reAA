@@ -6,4 +6,4 @@ nixPkgs = ["python312", "uv"]
 cmds = ["uv sync --frozen --no-dev"]
 
 [start]
-cmd = "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "uv run python manage.py migrate && uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
