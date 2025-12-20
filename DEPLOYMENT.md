@@ -271,6 +271,40 @@ git add -A && git commit -m "message" && git push origin master
 
 ---
 
+### 2025-12-20: railway.json이 Dockerfile을 무시함
+
+**증상:**
+```
+ModuleNotFoundError: No module named 'django'
+```
+Dockerfile이 있는데도 동일한 에러 반복 발생
+
+**원인:**
+- `railway.json`에 `"builder": "NIXPACKS"` 명시적 설정
+- Railway는 railway.json 설정을 최우선으로 사용
+- Dockerfile이 있어도 NIXPACKS 빌더가 강제됨
+
+**해결:**
+```json
+// railway.json
+{
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  }
+}
+```
+
+**추가 조치:**
+- `.dockerignore` 파일 생성 (로컬 .venv 복사 방지)
+
+**핵심 교훈:**
+1. railway.json 설정이 자동 감지보다 우선함
+2. Dockerfile을 사용하려면 railway.json에 명시적으로 DOCKERFILE 빌더 지정
+3. .dockerignore 없으면 로컬 파일이 빌드에 영향 줄 수 있음
+
+---
+
 ## 새 에러 기록 템플릿
 
 ```markdown
