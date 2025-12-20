@@ -26,6 +26,11 @@ media/
 .DS_Store
 Thumbs.db
 
+# Credentials and config (sensitive)
+config/
+credentials*.json
+client_secret*.json
+
 # Local files (not for deployment)
 *.xls
 *.xlsm

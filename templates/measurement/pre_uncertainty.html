@@ -2,6 +2,19 @@
 
 {% block title %}사전 불확실도 분석 - 유량측정 시스템{% endblock %}
 
+{% block extra_head %}
+<!-- MathJax for LaTeX rendering -->
+<script>
+MathJax = {
+    tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="preUncertainty()">
     <!-- Header -->
@@ -120,7 +133,7 @@
                         <span class="font-semibold">합성표준불확실도</span>
                         <span class="font-bold text-lg" x-text="(result.total / 2).toFixed(1) + '%'"></span>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">u(Q) = √(Xe² + Xp² + Xc² + Xm²)</p>
+                    <p class="text-xs text-gray-500 mt-1">$u(Q) = \sqrt{X_e^2 + X_p^2 + X_c^2 + X_m^2}$</p>
                 </div>
             </div>
 
