@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}새 수위-유량곡선 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="ratingCurveEditor()">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <a href="{% url 'measurement:rating_curve_list' %}" class="hover:text-primary-600">수위-유량곡선</a>
+            <span>/</span>
+            <span>새 곡선 생성</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">새 수위-유량곡선 생성</h1>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: Data Input -->
+        <div class="space-y-6">
+            <!-- Basic Info -->
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">기본 정보</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">지점명</label>
+                        <input type="text" x-model="stationName"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                               placeholder="예: 경주 대종천">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">연도</label>
+                        <input type="number" x-model="year"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                               placeholder="2025">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">곡선 유형</label>
+                        <select x-model="curveType"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="open">방류 (Open)</option>
+                            <option value="close">저류 (Close)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">영점수위 h0</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" step="0.001" x-model="h0Fixed" :disabled="!useFixedH0"
+                                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+                                   placeholder="자동">
+                            <label class="flex items-center text-sm">
+                                <input type="checkbox" x-model="useFixedH0" class="mr-1">
+                                고정
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Input -->
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">H-Q 데이터 입력</h2>
+                    <div class="flex gap-2">
+                        <label class="inline-flex items-center px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-lg cursor-pointer transition-colors">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                            CSV 가져오기
+                            <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-center w-12">#</th>
+                                <th class="px-3 py-2 text-center">수위 H (m)</th>
+                                <th class="px-3 py-2 text-center">유량 Q (m³/s)</th>
+                                <th class="px-3 py-2 text-center">측정일</th>
+                                <th class="px-3 py-2 text-center w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, index) in dataPoints" :key="index">
+                                <tr class="border-b">
+                                    <td class="px-3 py-2 text-center text-gray-500" x-text="index + 1"></td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="0.001" x-model.number="row.h"
+                                               class="w-full px-2 py-1 border border-gray-300 rounded text-center"
+                                               placeholder="0.000">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="0.001" x-model.number="row.q"
+                                               class="w-full px-2 py-1 border border-gray-300 rounded text-center"
+                                               placeholder="0.000">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="date" x-model="row.date"
+                                               class="w-full px-2 py-1 border border-gray-300 rounded text-center">
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <button type="button" @click="removeRow(index)"
+                                                class="text-red-500 hover:text-red-700" x-show="dataPoints.length > 3">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <button type="button" @click="addRow"
+                        class="mt-3 w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary-500 hover:text-primary-600 transition-colors">
+                    + 데이터 추가
+                </button>
+            </div>
+
+            <!-- Fit Button -->
+            <button type="button" @click="fitCurve" :disabled="isLoading"
+                    class="w-full py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 font-medium">
+                <span x-show="!isLoading">곡선 피팅 실행</span>
+                <span x-show="isLoading">계산 중...</span>
+            </button>
+        </div>
+
+        <!-- Right: Chart & Results -->
+        <div class="space-y-6">
+            <!-- Chart -->
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">H-Q Rating Curve</h2>
+                <div class="aspect-square">
+                    <canvas id="ratingCurveChart"></canvas>
+                </div>
+                <div class="mt-3 flex justify-center gap-4 text-sm">
+                    <label class="flex items-center">
+                        <input type="checkbox" x-model="logScale" @change="updateChart" class="mr-2">
+                        Log Scale
+                    </label>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="bg-white rounded-xl shadow-sm border p-6" x-show="fitResult">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">피팅 결과</h2>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-blue-600 mb-1">회귀식</p>
+                    <p class="text-xl font-mono font-bold text-blue-900" x-text="fitResult?.equation || '-'"></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-sm text-gray-500">수위범위</p>
+                        <p class="font-medium" x-text="fitResult ? `${fitResult.h_range.min} ~ ${fitResult.h_range.max} m` : '-'"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-sm text-gray-500">결정계수 (R²)</p>
+                        <p class="font-bold text-lg" :class="fitResult?.statistics.r_squared >= 0.95 ? 'text-green-600' : 'text-yellow-600'"
+                           x-text="fitResult?.statistics.r_squared || '-'"></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 text-sm">
+                    <div class="bg-gray-50 rounded p-2">
+                        <p class="text-gray-500">계수 a</p>
+                        <p class="font-mono" x-text="fitResult?.coefficients.a || '-'"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded p-2">
+                        <p class="text-gray-500">지수 b</p>
+                        <p class="font-mono" x-text="fitResult?.coefficients.b || '-'"></p>
+                    </div>
+                    <div class="bg-gray-50 rounded p-2">
+                        <p class="text-gray-500">영점수위 h0</p>
+                        <p class="font-mono" x-text="fitResult?.coefficients.h0 || '-'"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="flex gap-3" x-show="fitResult">
+                <a href="{% url 'measurement:rating_curve_list' %}"
+                   class="flex-1 py-3 text-center border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    취소
+                </a>
+                <button type="button" @click="saveCurve"
+                        class="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
+                    저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function ratingCurveEditor() {
+    return {
+        stationName: '',
+        year: new Date().getFullYear(),
+        curveType: 'open',
+        useFixedH0: false,
+        h0Fixed: 0,
+        logScale: false,
+        isLoading: false,
+        fitResult: null,
+        chart: null,
+
+        dataPoints: [
+            { h: 0.24, q: 0.12, date: '2025-03-15' },
+            { h: 0.32, q: 0.28, date: '2025-04-20' },
+            { h: 0.48, q: 0.95, date: '2025-05-10' },
+            { h: 0.65, q: 1.65, date: '2025-06-05' },
+        ],
+
+        init() {
+            this.initChart();
+            this.updateChart();
+        },
+
+        initChart() {
+            const ctx = document.getElementById('ratingCurveChart').getContext('2d');
+            this.chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: '실측 데이터',
+                            data: [],
+                            backgroundColor: 'rgba(249, 115, 22, 0.8)',
+                            borderColor: 'rgb(249, 115, 22)',
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                        },
+                        {
+                            label: 'Rating Curve',
+                            data: [],
+                            type: 'line',
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: 'Q (m³/s)' },
+                            min: 0,
+                        },
+                        y: {
+                            type: 'linear',
+                            title: { display: true, text: 'H (m)' },
+                            min: 0,
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        },
+
+        updateChart() {
+            if (!this.chart) return;
+
+            // 실측 데이터 (Q, H) - X축이 Q, Y축이 H
+            const scatterData = this.dataPoints
+                .filter(p => p.h && p.q)
+                .map(p => ({ x: p.q, y: p.h }));
+
+            this.chart.data.datasets[0].data = scatterData;
+
+            // 피팅 곡선
+            if (this.fitResult) {
+                const curveData = this.fitResult.curve_points.h.map((h, i) => ({
+                    x: this.fitResult.curve_points.q[i],
+                    y: h
+                }));
+                this.chart.data.datasets[1].data = curveData;
+            } else {
+                this.chart.data.datasets[1].data = [];
+            }
+
+            // Log scale 설정
+            this.chart.options.scales.x.type = this.logScale ? 'logarithmic' : 'linear';
+
+            this.chart.update();
+        },
+
+        addRow() {
+            this.dataPoints.push({ h: null, q: null, date: '' });
+        },
+
+        removeRow(index) {
+            if (this.dataPoints.length > 3) {
+                this.dataPoints.splice(index, 1);
+                this.updateChart();
+            }
+        },
+
+        importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const lines = text.trim().split('\n');
+
+                let startIndex = 0;
+                const firstLine = lines[0].split(',');
+                if (isNaN(parseFloat(firstLine[0]))) {
+                    startIndex = 1;
+                }
+
+                this.dataPoints = [];
+                for (let i = startIndex; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    if (values.length >= 2) {
+                        this.dataPoints.push({
+                            h: parseFloat(values[0]) || null,
+                            q: parseFloat(values[1]) || null,
+                            date: values[2] || ''
+                        });
+                    }
+                }
+                this.updateChart();
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        },
+
+        async fitCurve() {
+            const validData = this.dataPoints.filter(p => p.h && p.q);
+            if (validData.length < 3) {
+                alert('최소 3개 이상의 유효한 데이터가 필요합니다.');
+                return;
+            }
+
+            this.isLoading = true;
+            try {
+                const response = await fetch('{% url "measurement:fit_rating_curve" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        h: validData.map(p => p.h),
+                        q: validData.map(p => p.q),
+                        h0: this.useFixedH0 ? parseFloat(this.h0Fixed) : null
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    this.fitResult = result;
+                    this.updateChart();
+                } else {
+                    alert(result.error || '피팅 실패');
+                }
+            } catch (error) {
+                alert('오류: ' + error.message);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        saveCurve() {
+            // 저장 로직 (추후 구현)
+            alert('저장되었습니다. (샘플)');
+            window.location.href = '{% url "measurement:rating_curve_list" %}';
+        }
+    }
+}
+</script>
+{% endblock %}

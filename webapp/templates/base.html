@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}유량측정 시스템{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+    <!-- Alpine.js for simple interactions -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .htmx-request.htmx-indicator { opacity: 1; }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b sticky top-0 z-50" x-data="{ mobileOpen: false }">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo & Desktop Nav -->
+                <div class="flex items-center">
+                    <a href="{% url 'home' %}" class="flex items-center space-x-2">
+                        <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        <span class="text-xl font-bold text-gray-900">유량측정</span>
+                    </a>
+
+                    <!-- Desktop Menu -->
+                    <div class="hidden md:flex md:ml-10 md:space-x-1">
+                        <a href="{% url 'measurement:list' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'list' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            측정 관리
+                        </a>
+                        <a href="{% url 'measurement:pre_uncertainty' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'pre_uncertainty' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            사전분석
+                        </a>
+                        <a href="{% url 'measurement:meters' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.url_name == 'meters' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            유속계 관리
+                        </a>
+                        <a href="{% url 'measurement:rating_curve_list' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if 'rating_curve' in request.resolver_match.url_name %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            H-Q 곡선
+                        </a>
+                        <a href="{% url 'measurement:timeseries_list' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if 'timeseries' in request.resolver_match.url_name %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            시계열
+                        </a>
+                        <a href="{% url 'measurement:baseflow_list' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if 'baseflow' in request.resolver_match.url_name %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            기저유출
+                        </a>
+                        <a href="{% url 'satellite:viewer' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.app_name == 'satellite' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            위성영상
+                        </a>
+                        <a href="{% url 'hydro:dashboard' %}"
+                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.app_name == 'hydro' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            수문자료
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right side -->
+                <div class="hidden md:flex md:items-center md:space-x-3">
+                    <a href="{% url 'measurement:new' %}"
+                       class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        새 측정
+                    </a>
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="flex items-center md:hidden">
+                    <button @click="mobileOpen = !mobileOpen" class="p-2 rounded-lg text-gray-600 hover:bg-gray-100">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path x-show="!mobileOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                            <path x-show="mobileOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div x-show="mobileOpen" x-cloak class="md:hidden border-t bg-white">
+            <div class="px-4 py-3 space-y-1">
+                <a href="{% url 'measurement:list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">측정 관리</a>
+                <a href="{% url 'measurement:pre_uncertainty' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">사전분석</a>
+                <a href="{% url 'measurement:meters' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">유속계 관리</a>
+                <a href="{% url 'measurement:rating_curve_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">H-Q 곡선</a>
+                <a href="{% url 'measurement:timeseries_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">시계열</a>
+                <a href="{% url 'measurement:baseflow_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">기저유출</a>
+                <a href="{% url 'satellite:viewer' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">위성영상</a>
+                <a href="{% url 'hydro:dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">수문자료</a>
+                <hr class="my-2">
+                <a href="{% url 'measurement:new' %}" class="block px-4 py-2 rounded-lg bg-primary-600 text-white text-center">+ 새 측정</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for message in messages %}
+        <div class="mb-2 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border border-green-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-auto">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-gray-500 text-sm">
+                ISO 748 기반 유량측정 불확실도 분석 시스템
+            </p>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

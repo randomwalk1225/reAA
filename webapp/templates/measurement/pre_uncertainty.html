@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}사전 불확실도 분석 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="preUncertainty()">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">사전 불확실도 분석</h1>
+        <p class="mt-1 text-gray-600">측정 전 예상 불확실도를 추정하여 측정 계획 수립에 활용합니다</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Input Form -->
+        <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">예상 측정 조건</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">예상 측선 수</label>
+                    <input type="number" x-model="conditions.verticals" @input="calculate"
+                           min="5" max="50" placeholder="10"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">권장: 10개 이상</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">예상 평균 수심 (m)</label>
+                    <input type="number" x-model="conditions.avgDepth" @input="calculate"
+                           min="0.1" max="10" step="0.1" placeholder="0.8"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-3">수면 상태</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="surface" value="good" x-model="conditions.surface" @change="calculate"
+                                   class="w-4 h-4 text-primary-600">
+                            <span class="ml-2 text-sm">양호</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="surface" value="normal" x-model="conditions.surface" @change="calculate"
+                                   class="w-4 h-4 text-primary-600">
+                            <span class="ml-2 text-sm">보통</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="surface" value="poor" x-model="conditions.surface" @change="calculate"
+                                   class="w-4 h-4 text-primary-600">
+                            <span class="ml-2 text-sm">불량</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">측정 시간 (초/점)</label>
+                    <input type="number" x-model="conditions.measurementTime" @input="calculate"
+                           min="30" max="120" step="10" placeholder="60"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-gray-500 mt-1">권장: 60초 이상</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">유속계</label>
+                    <select x-model="conditions.meter" @change="calculate"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <option value="PROP-001">PROP-001 (프로펠러형)</option>
+                        <option value="PROP-002">PROP-002 (프로펠러형)</option>
+                        <option value="ELEC-001">ELEC-001 (전자식)</option>
+                    </select>
+                </div>
+
+                <button type="button" @click="calculate"
+                        class="w-full py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium">
+                    불확실도 계산
+                </button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="space-y-6">
+            <!-- Main Result -->
+            <div class="bg-white rounded-xl shadow-sm border p-6 text-center">
+                <p class="text-gray-500 mb-2">예상 불확실도</p>
+                <div class="text-5xl font-bold mb-2"
+                     :class="result.total < 5 ? 'text-green-600' : result.total < 7 ? 'text-yellow-600' : 'text-red-600'">
+                    ±<span x-text="result.total.toFixed(1)"></span>%
+                </div>
+                <p class="text-gray-500">(95% 신뢰수준, k=2)</p>
+
+                <div class="mt-4 inline-flex items-center px-3 py-1 rounded-full text-sm"
+                     :class="result.total < 5 ? 'bg-green-100 text-green-800' : result.total < 7 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'">
+                    <span x-text="result.total < 5 ? '양호' : result.total < 7 ? '보통' : '개선 필요'"></span>
+                </div>
+            </div>
+
+            <!-- Components -->
+            <div class="bg-white rounded-xl shadow-sm border p-6">
+                <h3 class="font-semibold text-gray-900 mb-4">불확실도 구성요소</h3>
+
+                <div class="space-y-3">
+                    <template x-for="(comp, key) in result.components" :key="key">
+                        <div class="flex items-center justify-between py-2 border-b last:border-0">
+                            <div>
+                                <p class="font-medium text-gray-900" x-text="comp.name"></p>
+                                <p class="text-xs text-gray-500" x-text="comp.desc"></p>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-medium" x-text="comp.value.toFixed(1) + '%'"></span>
+                                <template x-if="comp.suggestion">
+                                    <p class="text-xs text-amber-600" x-text="comp.suggestion"></p>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="mt-4 pt-4 border-t bg-gray-50 -mx-6 -mb-6 px-6 py-4 rounded-b-xl">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">합성표준불확실도</span>
+                        <span class="font-bold text-lg" x-text="(result.total / 2).toFixed(1) + '%'"></span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">u(Q) = √(Xe² + Xp² + Xc² + Xm²)</p>
+                </div>
+            </div>
+
+            <!-- Improvement Tips -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4" x-show="result.tips.length > 0">
+                <h3 class="font-semibold text-blue-900 mb-2">개선 제안</h3>
+                <ul class="space-y-1 text-sm text-blue-800">
+                    <template x-for="tip in result.tips" :key="tip">
+                        <li class="flex items-start">
+                            <span class="mr-2">💡</span>
+                            <span x-text="tip"></span>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function preUncertainty() {
+    return {
+        conditions: {
+            verticals: 10,
+            avgDepth: 0.8,
+            surface: 'normal',
+            measurementTime: 60,
+            meter: 'PROP-001'
+        },
+        result: {
+            total: 5.2,
+            components: {
+                xe: { name: 'Xe (측점)', desc: '측선 수 관련', value: 2.0, suggestion: null },
+                xp: { name: 'Xp (수심)', desc: '수심 측정 관련', value: 2.5, suggestion: null },
+                xc: { name: 'Xc (검정)', desc: '유속계 검정 관련', value: 1.0, suggestion: null },
+                xm: { name: 'Xm (측정)', desc: '유속 측정 관련', value: 3.5, suggestion: '측정시간 90초 권장' }
+            },
+            tips: []
+        },
+
+        init() {
+            this.calculate();
+        },
+
+        calculate() {
+            // 측점 불확실도 (Xe) - 측선 수에 따라 감소
+            const xe = Math.max(1.0, 6.0 / Math.sqrt(this.conditions.verticals));
+
+            // 수심 불확실도 (Xp) - 수면 상태와 수심에 따라
+            const surfaceFactors = { good: 1.0, normal: 1.5, poor: 2.0 };
+            const xp = surfaceFactors[this.conditions.surface] * (1.5 + 0.5 / this.conditions.avgDepth);
+
+            // 검정 불확실도 (Xc) - 유속계에 따라 고정
+            const meterUncertainty = { 'PROP-001': 1.0, 'PROP-002': 1.2, 'ELEC-001': 0.8 };
+            const xc = meterUncertainty[this.conditions.meter] || 1.0;
+
+            // 측정 불확실도 (Xm) - 측정 시간에 따라
+            const xm = Math.max(1.5, 5.0 - (this.conditions.measurementTime - 30) * 0.05);
+
+            // 합성 (RSS)
+            const combined = Math.sqrt(xe*xe + xp*xp + xc*xc + xm*xm);
+            const expanded = combined * 2; // k=2 for 95%
+
+            // 결과 업데이트
+            this.result.components.xe.value = xe;
+            this.result.components.xp.value = xp;
+            this.result.components.xc.value = xc;
+            this.result.components.xm.value = xm;
+            this.result.total = expanded;
+
+            // 제안 생성
+            this.result.tips = [];
+            this.result.components.xe.suggestion = null;
+            this.result.components.xm.suggestion = null;
+
+            if (this.conditions.verticals < 10) {
+                this.result.components.xe.suggestion = '측선 수 증가 권장';
+                this.result.tips.push(`측선 수를 ${this.conditions.verticals}개에서 10개 이상으로 늘리면 Xe가 감소합니다.`);
+            }
+
+            if (this.conditions.measurementTime < 60) {
+                this.result.components.xm.suggestion = '측정시간 60초 권장';
+                this.result.tips.push(`측정 시간을 ${this.conditions.measurementTime}초에서 60초로 늘리면 Xm이 감소합니다.`);
+            }
+
+            if (this.conditions.surface === 'poor') {
+                this.result.tips.push('수면 상태가 불량한 경우 측정 시기를 조정하는 것을 고려하세요.');
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

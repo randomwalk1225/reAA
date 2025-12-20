@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}실시간 수문자료 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<style>
+    .data-card {
+        transition: all 0.2s ease;
+    }
+    .data-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .value-large {
+        font-size: 2rem;
+        font-weight: 700;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+    .value-unit {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    .station-name {
+        font-size: 0.875rem;
+        color: #374151;
+        font-weight: 600;
+    }
+    .update-time {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    .refresh-btn {
+        transition: transform 0.3s ease;
+    }
+    .refresh-btn:hover {
+        transform: rotate(180deg);
+    }
+    .station-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+    .station-chip.selected {
+        background: #3b82f6;
+        color: white;
+    }
+    .station-chip:not(.selected) {
+        background: #e5e7eb;
+        color: #374151;
+    }
+    .station-chip:not(.selected):hover {
+        background: #d1d5db;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="hydroDashboard()">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">실시간 수문자료</h1>
+            <p class="mt-1 text-gray-600">한강홍수통제소 (10분 간격 갱신)</p>
+        </div>
+        <div class="mt-4 sm:mt-0 flex items-center gap-4">
+            <span class="text-sm text-gray-500">
+                최종 갱신: <span x-text="updatedAt" class="font-mono">{{ updated_at }}</span>
+            </span>
+            <button @click="refresh()"
+                    class="p-2 rounded-lg bg-primary-100 text-primary-600 hover:bg-primary-200 refresh-btn"
+                    :disabled="isLoading">
+                <svg class="w-5 h-5" :class="{'animate-spin': isLoading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Station Selector Toggle -->
+    <div class="mb-6">
+        <button @click="showSelector = !showSelector"
+                class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+            관측소 선택
+            <svg class="w-4 h-4 ml-2 transition-transform" :class="{'rotate-180': showSelector}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Station Selector Panel -->
+    <div x-show="showSelector" x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 -translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="mb-6 bg-white rounded-xl shadow-sm border p-4">
+
+        <!-- Water Level Stations -->
+        <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">수위 관측소</h3>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="station in allWaterlevelStations" :key="station.code">
+                    <button class="station-chip"
+                            :class="{'selected': selectedWlStations.includes(station.code)}"
+                            @click="toggleStation('wl', station.code)">
+                        <span x-text="station.name"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Rainfall Stations -->
+        <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">강수 관측소</h3>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="station in allRainfallStations" :key="station.code">
+                    <button class="station-chip"
+                            :class="{'selected': selectedRfStations.includes(station.code)}"
+                            @click="toggleStation('rf', station.code)">
+                        <span x-text="station.name"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Apply Button -->
+        <div class="flex justify-end gap-2 pt-3 border-t">
+            <button @click="resetStations()"
+                    class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
+                초기화
+            </button>
+            <button @click="applyStations()"
+                    class="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700">
+                적용
+            </button>
+        </div>
+    </div>
+
+    <!-- Water Level Section -->
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+            </svg>
+            수위 / 유량
+            <span class="ml-2 text-sm font-normal text-gray-500" x-text="`(${waterlevelData.length}개 관측소)`"></span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <template x-for="item in waterlevelData" :key="item.station_code">
+                <div class="data-card bg-white rounded-xl shadow-sm border p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="station-name" x-text="item.station_name"></span>
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">수위</span>
+                    </div>
+                    <div class="mb-3">
+                        <span class="value-large text-blue-600" x-text="item.water_level?.toFixed(2) || '-'"></span>
+                        <span class="value-unit">m</span>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <div>
+                            <span class="text-gray-500">유량:</span>
+                            <span class="font-semibold" x-text="item.flow_rate?.toFixed(1) || '-'"></span>
+                            <span class="text-gray-400">m3/s</span>
+                        </div>
+                    </div>
+                    <div class="update-time mt-2" x-text="item.time"></div>
+                </div>
+            </template>
+            <div x-show="waterlevelData.length === 0" class="col-span-full text-center py-8 text-gray-500">
+                선택된 수위 관측소가 없습니다.
+            </div>
+        </div>
+    </div>
+
+    <!-- Rainfall Section -->
+    <div class="mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+            </svg>
+            강수량
+            <span class="ml-2 text-sm font-normal text-gray-500" x-text="`(${rainfallData.length}개 관측소)`"></span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <template x-for="item in rainfallData" :key="item.station_code">
+                <div class="data-card bg-white rounded-xl shadow-sm border p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="station-name" x-text="item.station_name"></span>
+                        <span class="px-2 py-0.5 bg-cyan-100 text-cyan-700 text-xs rounded-full">강수</span>
+                    </div>
+                    <div class="mb-3">
+                        <span class="value-large"
+                              :class="item.rainfall > 0 ? 'text-cyan-600' : 'text-gray-400'"
+                              x-text="item.rainfall?.toFixed(1) || '0.0'"></span>
+                        <span class="value-unit">mm</span>
+                    </div>
+                    <div class="update-time mt-2" x-text="item.time"></div>
+                </div>
+            </template>
+            <div x-show="rainfallData.length === 0" class="col-span-full text-center py-8 text-gray-500">
+                선택된 강수 관측소가 없습니다.
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Source Info -->
+    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
+        <div class="flex items-center">
+            <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span>데이터 출처: </span>
+            <a href="https://www.hrfco.go.kr" target="_blank" class="text-primary-600 hover:underline ml-1">
+                한강홍수통제소 (HRFCO)
+            </a>
+            <span class="mx-2">|</span>
+            <span>10분 간격 자동 갱신</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 전체 관측소 목록
+const ALL_WATERLEVEL_STATIONS = [
+    {% for code, name in all_waterlevel_stations.items %}
+    { code: "{{ code }}", name: "{{ name }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+const ALL_RAINFALL_STATIONS = [
+    {% for code, name in all_rainfall_stations.items %}
+    { code: "{{ code }}", name: "{{ name }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// 초기 선택 관측소
+const INITIAL_WL_STATIONS = {{ selected_wl_stations|safe }};
+const INITIAL_RF_STATIONS = {{ selected_rf_stations|safe }};
+
+// 초기 데이터
+const INITIAL_WATERLEVEL = [
+    {% for item in waterlevel_data %}
+    {
+        station_code: "{{ item.wlobscd }}",
+        station_name: "{{ item.station_name }}",
+        water_level: {{ item.wl|default:"null" }},
+        flow_rate: {{ item.fw|default:"null" }},
+        time: "{{ item.time_str }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+const INITIAL_RAINFALL = [
+    {% for item in rainfall_data %}
+    {
+        station_code: "{{ item.rfobscd }}",
+        station_name: "{{ item.station_name }}",
+        rainfall: {{ item.rf|default:"0" }},
+        time: "{{ item.time_str }}"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// 기본 관측소 (초기화용)
+const DEFAULT_WL_STATIONS = ['1018630', '1018680', '1018683', '1019665', '1018685'];
+const DEFAULT_RF_STATIONS = ['10184100', '10181700', '10183100', '10182700', '10181410'];
+
+function hydroDashboard() {
+    return {
+        waterlevelData: INITIAL_WATERLEVEL,
+        rainfallData: INITIAL_RAINFALL,
+        updatedAt: '{{ updated_at }}',
+        isLoading: false,
+        refreshInterval: null,
+        showSelector: false,
+
+        // 관측소 목록
+        allWaterlevelStations: ALL_WATERLEVEL_STATIONS,
+        allRainfallStations: ALL_RAINFALL_STATIONS,
+
+        // 선택된 관측소
+        selectedWlStations: [...INITIAL_WL_STATIONS],
+        selectedRfStations: [...INITIAL_RF_STATIONS],
+
+        init() {
+            // 2분마다 자동 갱신
+            this.refreshInterval = setInterval(() => {
+                this.refresh();
+            }, 2 * 60 * 1000);
+        },
+
+        toggleStation(type, code) {
+            const arr = type === 'wl' ? this.selectedWlStations : this.selectedRfStations;
+            const idx = arr.indexOf(code);
+            if (idx >= 0) {
+                arr.splice(idx, 1);
+            } else {
+                arr.push(code);
+            }
+        },
+
+        resetStations() {
+            this.selectedWlStations = [...DEFAULT_WL_STATIONS];
+            this.selectedRfStations = [...DEFAULT_RF_STATIONS];
+        },
+
+        applyStations() {
+            // 쿠키에 저장 (30일)
+            const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+            document.cookie = `hydro_wl_stations=${this.selectedWlStations.join(',')};expires=${expires};path=/`;
+            document.cookie = `hydro_rf_stations=${this.selectedRfStations.join(',')};expires=${expires};path=/`;
+
+            // 데이터 갱신
+            this.refresh();
+            this.showSelector = false;
+        },
+
+        async refresh() {
+            this.isLoading = true;
+
+            try {
+                const wlParam = this.selectedWlStations.join(',');
+                const rfParam = this.selectedRfStations.join(',');
+                const response = await fetch(`/hydro/api/stations/?wl_stations=${wlParam}&rf_stations=${rfParam}`);
+                const data = await response.json();
+
+                this.waterlevelData = data.waterlevel;
+                this.rainfallData = data.rainfall;
+                this.updatedAt = data.updated_at;
+            } catch (error) {
+                console.error('데이터 갱신 실패:', error);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        destroy() {
+            if (this.refreshInterval) {
+                clearInterval(this.refreshInterval);
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

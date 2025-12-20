@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}측정 관리 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">측정 관리</h1>
+            <p class="mt-1 text-gray-600">유량 측정 기록을 관리합니다</p>
+        </div>
+        <div class="mt-4 sm:mt-0">
+            <a href="{% url 'measurement:new' %}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                새 측정
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border p-4 mb-6">
+        <form method="get" class="flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" name="search" value="{{ request.GET.search }}"
+                       placeholder="하천명, 지점명 검색..."
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+            </div>
+            <div class="flex gap-2">
+                <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                <span class="self-center text-gray-500">~</span>
+                <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                검색
+            </button>
+        </form>
+    </div>
+
+    <!-- ==================== PC Layout (lg:) - Table ==================== -->
+    <div class="hidden lg:block bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">관측소</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">측정일</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">유량</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">불확실도</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% if measurements %}
+                        {% for m in measurements %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center mr-3">
+                                        <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900">{{ m.station_name }}</p>
+                                        <p class="text-sm text-gray-500">{{ m.river_name }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ m.measurement_date }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-lg font-semibold text-gray-900">{{ m.discharge|floatformat:3 }}</span>
+                                <span class="text-sm text-gray-500">m³/s</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="text-sm font-medium text-gray-900">±{{ m.uncertainty|floatformat:1 }}%</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if m.status == 'completed' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    완료
+                                </span>
+                                {% elif m.status == 'draft' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    임시저장
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    {{ m.status }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <a href="{% url 'measurement:detail' m.id %}" class="text-primary-600 hover:text-primary-800 mr-3">보기</a>
+                                <a href="{% url 'measurement:edit' m.id %}" class="text-gray-600 hover:text-gray-800 mr-3">수정</a>
+                                <button type="button"
+                                        hx-delete="{% url 'measurement:delete' m.id %}"
+                                        hx-confirm="정말 삭제하시겠습니까?"
+                                        hx-target="closest tr"
+                                        hx-swap="outerHTML"
+                                        class="text-red-600 hover:text-red-800">삭제</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center">
+                                <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                </svg>
+                                <p class="text-gray-500 mb-4">측정 기록이 없습니다</p>
+                                <a href="{% url 'measurement:new' %}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700">
+                                    첫 측정 시작하기
+                                </a>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination (PC) -->
+        {% if measurements.has_other_pages %}
+        <div class="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
+            <div class="text-sm text-gray-500">
+                총 {{ measurements.paginator.count }}개 중 {{ measurements.start_index }}-{{ measurements.end_index }}
+            </div>
+            <div class="flex space-x-1">
+                {% if measurements.has_previous %}
+                <a href="?page={{ measurements.previous_page_number }}" class="px-3 py-1 rounded border hover:bg-gray-100">이전</a>
+                {% endif %}
+                {% if measurements.has_next %}
+                <a href="?page={{ measurements.next_page_number }}" class="px-3 py-1 rounded border hover:bg-gray-100">다음</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ==================== Mobile Layout (<lg) - Cards ==================== -->
+    <div class="lg:hidden space-y-3">
+        {% if measurements %}
+            {% for m in measurements %}
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <!-- Card Header -->
+                <div class="p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center mr-3 flex-shrink-0">
+                                <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ m.station_name }}</p>
+                                <p class="text-sm text-gray-500">{{ m.river_name }}</p>
+                            </div>
+                        </div>
+                        {% if m.status == 'completed' %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            완료
+                        </span>
+                        {% elif m.status == 'draft' %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            임시저장
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ m.status }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Measurement Data -->
+                    <div class="mt-4 grid grid-cols-3 gap-3 text-center">
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 mb-1">측정일</p>
+                            <p class="font-medium text-gray-900 text-sm">{{ m.measurement_date }}</p>
+                        </div>
+                        <div class="bg-primary-50 rounded-lg p-3">
+                            <p class="text-xs text-primary-600 mb-1">유량</p>
+                            <p class="font-bold text-primary-700">{{ m.discharge|floatformat:3 }}</p>
+                            <p class="text-xs text-primary-500">m³/s</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 mb-1">불확실도</p>
+                            <p class="font-medium text-gray-900">±{{ m.uncertainty|floatformat:1 }}%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Actions -->
+                <div class="px-4 py-3 bg-gray-50 border-t flex justify-end gap-4">
+                    <a href="{% url 'measurement:detail' m.id %}" class="text-sm font-medium text-primary-600 hover:text-primary-800">
+                        보기
+                    </a>
+                    <a href="{% url 'measurement:edit' m.id %}" class="text-sm font-medium text-gray-600 hover:text-gray-800">
+                        수정
+                    </a>
+                    <button type="button"
+                            hx-delete="{% url 'measurement:delete' m.id %}"
+                            hx-confirm="정말 삭제하시겠습니까?"
+                            hx-target="closest div.bg-white"
+                            hx-swap="outerHTML"
+                            class="text-sm font-medium text-red-600 hover:text-red-800">
+                        삭제
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- Empty State (Mobile) -->
+            <div class="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <p class="text-gray-500 mb-4">측정 기록이 없습니다</p>
+                <a href="{% url 'measurement:new' %}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700">
+                    첫 측정 시작하기
+                </a>
+            </div>
+        {% endif %}
+
+        <!-- Pagination (Mobile) -->
+        {% if measurements.has_other_pages %}
+        <div class="mt-4 flex items-center justify-between">
+            <div class="text-sm text-gray-500">
+                총 {{ measurements.paginator.count }}개
+            </div>
+            <div class="flex space-x-2">
+                {% if measurements.has_previous %}
+                <a href="?page={{ measurements.previous_page_number }}" class="px-4 py-2 text-sm rounded-lg border bg-white hover:bg-gray-50">이전</a>
+                {% endif %}
+                {% if measurements.has_next %}
+                <a href="?page={{ measurements.next_page_number }}" class="px-4 py-2 text-sm rounded-lg border bg-white hover:bg-gray-50">다음</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

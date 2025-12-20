@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Secrets
+.env
+*.env
+
+# Test files
+test_screenshots/
+*.png
+server.log
+
+# Temp files
+*.tmp
+*.bak
+*.xlk
+
+# Large/binary files
+*.zip
+*.bin
+PROJECT.bin
+PROJECT_patched.bin

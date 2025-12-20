@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block title %}기저유출 분석 상세 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="baseflowDetail()">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="{% url 'measurement:baseflow_list' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            분석 목록으로
+        </a>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ analysis.station_name }}</h1>
+                <p class="mt-1 text-gray-600">{{ analysis.start_date }} ~ {{ analysis.end_date }} | {{ analysis.method_display }}</p>
+            </div>
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                <button @click="exportPDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    PDF 리포트
+                </button>
+                <button @click="exportCSV()" class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    CSV 내보내기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid gap-4 md:grid-cols-5 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
+            <p class="text-xs text-gray-500 mb-1">분석 방법</p>
+            <p class="text-sm font-semibold text-gray-900">{{ analysis.method_display }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
+            <p class="text-xs text-gray-500 mb-1">필터 계수 (α)</p>
+            <p class="text-xl font-bold text-gray-900">{{ analysis.alpha }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4 text-center">
+            <p class="text-xs text-gray-500 mb-1">총유출량</p>
+            <p class="text-xl font-bold text-gray-900">{{ analysis.total_runoff|floatformat:1 }} <span class="text-sm font-normal">mm</span></p>
+        </div>
+        <div class="bg-emerald-50 rounded-xl shadow-sm border border-emerald-200 p-4 text-center">
+            <p class="text-xs text-emerald-600 mb-1">기저유출량</p>
+            <p class="text-xl font-bold text-emerald-600">{{ analysis.baseflow|floatformat:1 }} <span class="text-sm font-normal">mm</span></p>
+        </div>
+        <div class="bg-amber-50 rounded-xl shadow-sm border border-amber-200 p-4 text-center">
+            <p class="text-xs text-amber-600 mb-1">BFI</p>
+            <p class="text-2xl font-bold text-amber-600">{{ analysis.bfi }}</p>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid gap-6 lg:grid-cols-2 mb-6">
+        <!-- Time Series Chart -->
+        <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">기저유출 분리 시계열</h2>
+            <div style="height: 350px;">
+                <canvas id="timeseriesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Monthly Summary Chart -->
+        <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">월별 요약</h2>
+            <div style="height: 350px;">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flow Duration Curve -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">유황곡선 (Flow Duration Curve)</h2>
+        <div style="height: 300px;">
+            <canvas id="fdcChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">일별 데이터</h2>
+            <div class="flex space-x-2 text-sm">
+                <button @click="viewMode = 'table'"
+                        :class="viewMode === 'table' ? 'bg-gray-200' : 'bg-gray-100'"
+                        class="px-3 py-1 rounded">테이블</button>
+                <button @click="viewMode = 'chart'"
+                        :class="viewMode === 'chart' ? 'bg-gray-200' : 'bg-gray-100'"
+                        class="px-3 py-1 rounded">차트</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto max-h-96">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">날짜</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">총유량 (m³/s)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">기저유출 (m³/s)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">직접유출 (m³/s)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">BFI</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for d in daily_data %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-2 text-sm text-gray-900">{{ d.date }}</td>
+                        <td class="px-6 py-2 text-sm text-gray-900 text-right">{{ d.total|floatformat:3 }}</td>
+                        <td class="px-6 py-2 text-sm text-emerald-600 text-right font-medium">{{ d.baseflow|floatformat:3 }}</td>
+                        <td class="px-6 py-2 text-sm text-blue-600 text-right">{{ d.direct|floatformat:3 }}</td>
+                        <td class="px-6 py-2 text-sm text-gray-500 text-right">
+                            {% widthratio d.baseflow d.total 100 as daily_bfi %}
+                            {{ daily_bfi|default:"0" }}%
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function baseflowDetail() {
+    return {
+        viewMode: 'table',
+
+        init() {
+            this.initCharts();
+        },
+
+        initCharts() {
+            // 시계열 차트
+            const timeseriesCtx = document.getElementById('timeseriesChart').getContext('2d');
+            const labels = [];
+            const totalData = [];
+            const baseflowData = [];
+
+            {% for d in daily_data %}
+            labels.push('{{ d.date }}');
+            totalData.push({{ d.total }});
+            baseflowData.push({{ d.baseflow }});
+            {% endfor %}
+
+            new Chart(timeseriesCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '총유량',
+                            data: totalData,
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.1,
+                            pointRadius: 0,
+                        },
+                        {
+                            label: '기저유출',
+                            data: baseflowData,
+                            borderColor: 'rgb(16, 185, 129)',
+                            backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                            fill: true,
+                            tension: 0.1,
+                            pointRadius: 0,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 12 } },
+                        y: { min: 0, title: { display: true, text: 'm³/s' } }
+                    }
+                }
+            });
+
+            // 월별 요약 차트
+            const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+            const months = ['5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월', '1월', '2월', '3월', '4월'];
+            const monthlyTotal = [45, 52, 85, 120, 95, 65, 48, 42, 38, 35, 42, 50];
+            const monthlyBaseflow = [22, 24, 32, 38, 35, 30, 25, 22, 20, 18, 21, 24];
+
+            new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [
+                        {
+                            label: '직접유출',
+                            data: monthlyTotal.map((t, i) => t - monthlyBaseflow[i]),
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        },
+                        {
+                            label: '기저유출',
+                            data: monthlyBaseflow,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, title: { display: true, text: 'mm' } }
+                    }
+                }
+            });
+
+            // 유황곡선 (FDC)
+            const fdcCtx = document.getElementById('fdcChart').getContext('2d');
+            const sortedTotal = [...totalData].sort((a, b) => b - a);
+            const sortedBaseflow = [...baseflowData].sort((a, b) => b - a);
+            const exceedance = sortedTotal.map((_, i) => ((i + 1) / sortedTotal.length * 100).toFixed(1));
+
+            new Chart(fdcCtx, {
+                type: 'line',
+                data: {
+                    labels: exceedance,
+                    datasets: [
+                        {
+                            label: '총유량',
+                            data: sortedTotal,
+                            borderColor: 'rgb(59, 130, 246)',
+                            pointRadius: 0,
+                            tension: 0.1,
+                        },
+                        {
+                            label: '기저유출',
+                            data: sortedBaseflow,
+                            borderColor: 'rgb(16, 185, 129)',
+                            pointRadius: 0,
+                            tension: 0.1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '초과확률 (%)' },
+                            ticks: { maxTicksLimit: 10 }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: '유량 (m³/s)' }
+                        }
+                    }
+                }
+            });
+        },
+
+        exportPDF() {
+            alert('PDF 리포트 생성 기능 (구현 예정)');
+        },
+
+        exportCSV() {
+            let content = 'date,total_discharge,baseflow,direct_runoff\n';
+            {% for d in daily_data %}
+            content += '{{ d.date }},{{ d.total }},{{ d.baseflow }},{{ d.direct }}\n';
+            {% endfor %}
+
+            const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '{{ analysis.station_name }}_baseflow.csv';
+            a.click();
+        }
+    };
+}
+</script>
+{% endblock %}

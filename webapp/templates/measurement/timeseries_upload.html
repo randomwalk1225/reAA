@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}수위 데이터 업로드 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="uploadForm()">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="{% url 'measurement:timeseries_list' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            시계열 목록으로
+        </a>
+        <h1 class="text-2xl font-bold text-gray-900">수위 데이터 업로드</h1>
+        <p class="mt-1 text-gray-600">자동계측 수위 데이터를 CSV 형식으로 업로드합니다</p>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+        <form @submit.prevent="submitUpload">
+            <!-- Station Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">관측소 선택</label>
+                <select x-model="stationId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">새 관측소 등록</option>
+                    <option value="1">경주 대종천 하류보</option>
+                    <option value="2">신태인 수위관측소</option>
+                </select>
+            </div>
+
+            <!-- New Station Info (conditional) -->
+            <div x-show="!stationId" x-cloak class="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 class="text-sm font-medium text-gray-700 mb-3">새 관측소 정보</h3>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">지점명 *</label>
+                        <input type="text" x-model="newStation.name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="예: 경주 대종천">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">하천명</label>
+                        <input type="text" x-model="newStation.river" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="예: 대종천">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rating Curve Selection -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">적용할 H-Q 곡선</label>
+                <select x-model="ratingCurveId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">유량 변환 안함 (수위만 저장)</option>
+                    <option value="1">경주 대종천 2025년 방류: Q = 3.22(h - 0.001)^1.941</option>
+                    <option value="2">신태인 2003년 방류: Q = 24.5898(h - 0.034264)^1.6663</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">H-Q 곡선을 선택하면 수위 업로드 시 자동으로 유량이 계산됩니다</p>
+            </div>
+
+            <!-- File Upload Area -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">CSV 파일</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center"
+                     :class="{ 'border-primary-500 bg-primary-50': isDragging }"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-gray-600 mb-2">CSV 파일을 드래그하거나</p>
+                    <label class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
+                        파일 선택
+                        <input type="file" accept=".csv" @change="handleFileSelect($event)" class="hidden">
+                    </label>
+                </div>
+
+                <!-- Selected File Info -->
+                <div x-show="file" x-cloak class="mt-4 p-4 bg-gray-50 rounded-lg flex items-center justify-between">
+                    <div class="flex items-center">
+                        <svg class="w-8 h-8 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900" x-text="file?.name"></p>
+                            <p class="text-sm text-gray-500" x-text="fileInfo"></p>
+                        </div>
+                    </div>
+                    <button type="button" @click="clearFile()" class="text-gray-400 hover:text-red-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CSV Format Info -->
+            <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <h4 class="text-sm font-medium text-amber-800 mb-2">CSV 파일 형식</h4>
+                <code class="block text-xs text-amber-700 bg-amber-100 p-2 rounded">
+                    timestamp,stage<br>
+                    2024-05-01 00:00,0.35<br>
+                    2024-05-01 01:00,0.36<br>
+                    ...
+                </code>
+                <p class="mt-2 text-xs text-amber-700">
+                    * timestamp: 날짜시간 (YYYY-MM-DD HH:MM 형식)<br>
+                    * stage: 수위 (m 단위)
+                </p>
+            </div>
+
+            <!-- Preview Table -->
+            <div x-show="previewData.length > 0" x-cloak class="mb-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-2">데이터 미리보기 (처음 10행)</h3>
+                <div class="overflow-x-auto border rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">시각</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">수위(m)</th>
+                                <th x-show="ratingCurveId" class="px-4 py-2 text-left text-xs font-medium text-gray-500">유량(m³/s)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <template x-for="row in previewData.slice(0, 10)" :key="row.timestamp">
+                                <tr>
+                                    <td class="px-4 py-2 text-sm text-gray-900" x-text="row.timestamp"></td>
+                                    <td class="px-4 py-2 text-sm text-gray-900" x-text="row.stage.toFixed(3)"></td>
+                                    <td x-show="ratingCurveId" class="px-4 py-2 text-sm text-gray-900" x-text="calculateQ(row.stage).toFixed(4)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mt-2 text-sm text-gray-500">
+                    총 <span class="font-medium" x-text="previewData.length"></span>개 데이터
+                </p>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end space-x-3">
+                <a href="{% url 'measurement:timeseries_list' %}" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                    취소
+                </a>
+                <button type="submit"
+                        :disabled="!file || uploading"
+                        class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!uploading">업로드</span>
+                    <span x-show="uploading" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        업로드 중...
+                    </span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function uploadForm() {
+    return {
+        stationId: '',
+        newStation: { name: '', river: '' },
+        ratingCurveId: '',
+        file: null,
+        fileInfo: '',
+        previewData: [],
+        isDragging: false,
+        uploading: false,
+
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) this.processFile(file);
+        },
+
+        handleDrop(event) {
+            this.isDragging = false;
+            const file = event.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) {
+                this.processFile(file);
+            }
+        },
+
+        processFile(file) {
+            this.file = file;
+            this.fileInfo = `${(file.size / 1024).toFixed(1)} KB`;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                this.parseCSV(content);
+            };
+            reader.readAsText(file);
+        },
+
+        parseCSV(content) {
+            const lines = content.trim().split('\n');
+            this.previewData = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length >= 2) {
+                    this.previewData.push({
+                        timestamp: parts[0].trim(),
+                        stage: parseFloat(parts[1].trim())
+                    });
+                }
+            }
+        },
+
+        calculateQ(h) {
+            // 간단한 예시 (실제로는 선택된 곡선에 따라 계산)
+            if (this.ratingCurveId === '1') {
+                return 3.22 * Math.pow(h - 0.001, 1.941);
+            } else if (this.ratingCurveId === '2') {
+                return 24.5898 * Math.pow(h - 0.034264, 1.6663);
+            }
+            return 0;
+        },
+
+        clearFile() {
+            this.file = null;
+            this.fileInfo = '';
+            this.previewData = [];
+        },
+
+        async submitUpload() {
+            if (!this.file) return;
+
+            this.uploading = true;
+
+            // 실제 업로드 로직 (FormData 사용)
+            const formData = new FormData();
+            formData.append('file', this.file);
+            formData.append('station_id', this.stationId);
+            formData.append('rating_curve_id', this.ratingCurveId);
+
+            if (!this.stationId) {
+                formData.append('new_station_name', this.newStation.name);
+                formData.append('new_station_river', this.newStation.river);
+            }
+
+            try {
+                const response = await fetch('{% url "measurement:timeseries_upload" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.location.href = '{% url "measurement:timeseries_list" %}';
+                } else {
+                    alert('업로드 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                alert('업로드 중 오류가 발생했습니다.');
+            } finally {
+                this.uploading = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

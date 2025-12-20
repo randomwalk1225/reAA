@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}계산 결과 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <a href="{% url 'measurement:list' %}" class="hover:text-primary-600">측정 관리</a>
+            <span>/</span>
+            <span>계산 결과</span>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900">계산 결과</h1>
+        <p class="text-gray-600">{{ measurement.station_name|default:"경주 대종천 하류보" }} | {{ measurement.date|default:"2025-05-01" }}</p>
+    </div>
+
+    <!-- Main Results -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <!-- Discharge -->
+        <div class="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl p-6 text-white shadow-lg">
+            <p class="text-primary-100 mb-1">유량 (Discharge)</p>
+            <p class="text-4xl font-bold mb-2">{{ discharge|default:"--" }}</p>
+            <p class="text-lg text-primary-100">m³/s</p>
+            <div class="mt-4 pt-4 border-t border-primary-400">
+                <p class="text-sm text-primary-100">확장불확실도 (95%)</p>
+                <p class="text-xl font-semibold">± {{ uncertainty|default:"--" }}%</p>
+                <p class="text-sm text-primary-200">(± {{ uncertainty_abs|default:"--" }} m³/s)</p>
+            </div>
+        </div>
+
+        <!-- Area -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border">
+            <p class="text-gray-500 mb-1">단면적 (Area)</p>
+            <p class="text-4xl font-bold text-gray-900 mb-2">{{ area|default:"--" }}</p>
+            <p class="text-lg text-gray-500">m²</p>
+            <div class="mt-4 pt-4 border-t">
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <p class="text-gray-500">하폭</p>
+                        <p class="font-medium">{{ width|default:"--" }} m</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">평균수심</p>
+                        <p class="font-medium">{{ avg_depth|default:"--" }} m</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Velocity -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border">
+            <p class="text-gray-500 mb-1">평균유속 (Velocity)</p>
+            <p class="text-4xl font-bold text-gray-900 mb-2">{{ avg_velocity|default:"--" }}</p>
+            <p class="text-lg text-gray-500">m/s</p>
+            <div class="mt-4 pt-4 border-t">
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <p class="text-gray-500">최대유속</p>
+                        <p class="font-medium">{{ max_velocity|default:"--" }} m/s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">최소유속</p>
+                        <p class="font-medium">{{ min_velocity|default:"--" }} m/s</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Uncertainty Analysis & Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Uncertainty Components -->
+        <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">불확실도 구성요소 (ISO 748)</h2>
+
+            <div class="space-y-4">
+                <!-- Xe -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Xe (측점 불확실도)</span>
+                        <span class="font-medium">{{ Xe|default:"--" }}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full" style="width: {% widthratio Xe 5 100 %}%"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">측선 수: {{ n_verticals|default:"--" }}개</p>
+                </div>
+
+                <!-- Xp -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Xp (수심측정 불확실도)</span>
+                        <span class="font-medium">{{ Xp|default:"--" }}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500 rounded-full" style="width: {% widthratio Xp 5 100 %}%"></div>
+                    </div>
+                </div>
+
+                <!-- Xc -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Xc (검정 불확실도)</span>
+                        <span class="font-medium">{{ Xc|default:"--" }}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-yellow-500 rounded-full" style="width: {% widthratio Xc 5 100 %}%"></div>
+                    </div>
+                </div>
+
+                <!-- Xm -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-600">Xm (측정 불확실도)</span>
+                        <span class="font-medium">{{ Xm|default:"--" }}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500 rounded-full" style="width: {% widthratio Xm 5 100 %}%"></div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Combined -->
+                <div class="bg-gray-50 rounded-lg p-3">
+                    <div class="flex justify-between">
+                        <span class="font-medium text-gray-900">합성표준불확실도 (RSS)</span>
+                        <span class="font-bold text-gray-900">{{ combined_uncertainty|default:"--" }}%</span>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">u(Q) = √(Xe² + Xp² + Xc² + Xm²)</p>
+                    <div class="flex justify-between mt-2">
+                        <span class="font-medium text-primary-600">확장불확실도 (k=2)</span>
+                        <span class="font-bold text-primary-600">{{ uncertainty|default:"--" }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Discharge Distribution Chart -->
+        <div class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">측선별 유량 분포</h2>
+            {% if verticals %}
+            <div class="h-64 flex items-end justify-between gap-1 px-4">
+                {% for v in verticals %}
+                {% if v.discharge > 0 %}
+                <div class="flex-1 flex flex-col items-center">
+                    <div class="text-xs text-gray-500 mb-1">{{ v.ratio|floatformat:1 }}%</div>
+                    <div class="w-full bg-primary-500 rounded-t transition-all hover:bg-primary-600"
+                         style="height: {% widthratio v.ratio 50 200 %}px;"></div>
+                    <span class="text-xs text-gray-500 mt-1">{{ v.id }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div class="mt-4 text-center text-sm text-gray-500">측선 번호</div>
+            {% else %}
+            <div class="h-64 flex items-center justify-center text-gray-400">
+                데이터 없음
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Detailed Results Table -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b">
+            <h2 class="text-lg font-semibold text-gray-900">측선별 상세 결과</h2>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">측선</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">거리 (m)</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">수심 (m)</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">유속 (m/s)</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">단면적 (m²)</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">유량 (m³/s)</th>
+                        <th class="px-4 py-3 text-center font-medium text-gray-500">비율 (%)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for v in verticals %}
+                    <tr class="hover:bg-gray-50 {% if v.ratio > 20 %}bg-primary-50{% endif %}">
+                        <td class="px-4 py-3 text-center">{{ v.id }}</td>
+                        <td class="px-4 py-3 text-center">{{ v.distance|floatformat:1 }}</td>
+                        <td class="px-4 py-3 text-center">{{ v.depth|floatformat:2 }}</td>
+                        <td class="px-4 py-3 text-center">{{ v.velocity|floatformat:3 }}</td>
+                        <td class="px-4 py-3 text-center">{{ v.area|floatformat:3 }}</td>
+                        <td class="px-4 py-3 text-center {% if v.ratio > 20 %}font-medium{% endif %}">{{ v.discharge|floatformat:3 }}</td>
+                        <td class="px-4 py-3 text-center {% if v.ratio > 20 %}font-bold text-primary-600{% endif %}">{{ v.ratio|floatformat:1 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-6 text-center text-gray-400">데이터 없음</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if verticals %}
+                <tfoot class="bg-gray-100 font-medium">
+                    <tr>
+                        <td colspan="4" class="px-4 py-3 text-right">합계</td>
+                        <td class="px-4 py-3 text-center">{{ area }}</td>
+                        <td class="px-4 py-3 text-center">{{ discharge }}</td>
+                        <td class="px-4 py-3 text-center">100.0</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- Calculation Formula Reference -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">계산 수식</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">유속 계산 (프로펠러 유속계)</h3>
+                <p class="text-gray-600 bg-gray-50 p-2 rounded font-mono">V = a + b × (N/T)</p>
+                <p class="text-xs text-gray-500 mt-1">a = 검정계수 (절편), b = 검정계수 (기울기)</p>
+                <p class="text-xs text-gray-500">N = 회전수, T = 시간(초)</p>
+            </div>
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">평균유속 (측정법별)</h3>
+                <p class="text-gray-600 bg-gray-50 p-2 rounded font-mono text-xs">
+                    1점법: V = V₀.₆D<br>
+                    2점법: V = (V₀.₂D + V₀.₈D) / 2<br>
+                    3점법: V = (V₀.₂D + 2×V₀.₆D + V₀.₈D) / 4
+                </p>
+            </div>
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">유량 계산 (중앙단면법)</h3>
+                <p class="text-gray-600 bg-gray-50 p-2 rounded font-mono">Q = Σ (b × d_avg × v_avg)</p>
+                <p class="text-xs text-gray-500 mt-1">b = 구간 폭, d_avg = 평균수심, v_avg = 평균유속</p>
+            </div>
+            <div>
+                <h3 class="font-medium text-gray-700 mb-2">불확실도 (ISO 748)</h3>
+                <p class="text-gray-600 bg-gray-50 p-2 rounded font-mono">u(Q) = √(Xe² + Xp² + Xc² + Xm²)</p>
+                <p class="text-xs text-gray-500 mt-1">확장불확실도 U = k × u(Q), k=2 (95% 신뢰수준)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <a href="{% url 'measurement:data_input' %}"
+           class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+            ← 데이터 수정
+        </a>
+
+        <div class="flex gap-3">
+            <a href="{% url 'measurement:export_excel' %}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Excel 다운로드
+            </a>
+            <a href="{% url 'measurement:export_pdf' %}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                PDF 출력
+            </a>
+            <button type="button"
+                    class="inline-flex items-center px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                저장
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

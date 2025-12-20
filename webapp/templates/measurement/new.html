@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}새 측정 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="measurementWizard()">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">새 측정 생성</h1>
+        <p class="mt-1 text-gray-600">측정 정보를 단계별로 입력합니다</p>
+    </div>
+
+    <!-- Progress Steps -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between">
+            <template x-for="(stepItem, index) in steps" :key="index">
+                <div class="flex items-center" :class="index < steps.length - 1 ? 'flex-1' : ''">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-colors"
+                             :class="step > index + 1 ? 'bg-primary-600 text-white' : step === index + 1 ? 'bg-primary-600 text-white ring-4 ring-primary-100' : 'bg-gray-200 text-gray-600'">
+                            <template x-if="step > index + 1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </template>
+                            <template x-if="step <= index + 1">
+                                <span x-text="index + 1"></span>
+                            </template>
+                        </div>
+                        <span class="ml-3 text-sm font-medium hidden sm:block"
+                              :class="step >= index + 1 ? 'text-gray-900' : 'text-gray-500'"
+                              x-text="stepItem"></span>
+                    </div>
+                    <template x-if="index < steps.length - 1">
+                        <div class="flex-1 mx-4 h-0.5 transition-colors"
+                             :class="step > index + 1 ? 'bg-primary-600' : 'bg-gray-200'"></div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <form method="post" @submit.prevent="submitForm">
+        {% csrf_token %}
+
+        <!-- Step 1: Basic Info -->
+        <div x-show="step === 1" x-transition class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">기본 정보</h2>
+
+            <!-- Station Search with Autocomplete -->
+            <div class="mb-6" x-data="stationSearch()">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    지점명 <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <input type="text"
+                                   x-model="searchQuery"
+                                   @input.debounce.300ms="search()"
+                                   @focus="showDropdown = true; if(!searchQuery) loadAll()"
+                                   @click.away="showDropdown = false"
+                                   placeholder="지점명, 하천명, 또는 DM번호로 검색..."
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                   :class="{'border-green-500 bg-green-50': selectedStation}">
+                            <input type="hidden" name="station_code" :value="selectedStation?.code || ''">
+
+                            <!-- Loading indicator -->
+                            <div x-show="isLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+
+                            <!-- Clear button -->
+                            <button type="button"
+                                    x-show="selectedStation"
+                                    @click="clearSelection()"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Dropdown Results -->
+                    <div x-show="showDropdown && results.length > 0"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                        <template x-for="station in results" :key="station.code">
+                            <button type="button"
+                                    @click="selectStation(station)"
+                                    class="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0 flex items-center justify-between">
+                                <div>
+                                    <div class="font-medium text-gray-900" x-text="station.name"></div>
+                                    <div class="text-sm text-gray-500">
+                                        <span x-text="station.river"></span>
+                                        <span class="mx-1">|</span>
+                                        <span x-text="station.dm_code"></span>
+                                        <span class="mx-1">|</span>
+                                        <span x-text="station.region"></span>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-400 font-mono" x-text="station.code"></span>
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- No results message -->
+                    <div x-show="showDropdown && searchQuery && results.length === 0 && !isLoading"
+                         class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                        검색 결과가 없습니다
+                    </div>
+                </div>
+
+                <!-- Selected Station Info -->
+                <div x-show="selectedStation" x-transition class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="font-medium text-blue-900" x-text="selectedStation?.name"></p>
+                            <p class="text-sm text-blue-700">
+                                <span x-text="selectedStation?.river"></span> |
+                                <span x-text="selectedStation?.dm_code"></span> |
+                                <span x-text="selectedStation?.region"></span>
+                            </p>
+                        </div>
+                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">선택됨</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">하천명</label>
+                    <input type="text" name="river_name" x-model="formData.river_name"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">DM 번호</label>
+                    <input type="text" name="dm_number" x-model="formData.dm_number"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50" readonly>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">위치 설명</label>
+                <input type="text" name="location_desc" x-model="formData.location_desc"
+                       placeholder="예: 하류보 상류 100m"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+            </div>
+
+            <hr class="my-6">
+
+            <h3 class="text-md font-semibold text-gray-900 mb-4">측정 정보</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        측정 날짜 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="date" name="measurement_date" x-model="formData.measurement_date" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">기상 상태</label>
+                    <select name="weather" x-model="formData.weather"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <option value="맑음">맑음</option>
+                        <option value="흐림">흐림</option>
+                        <option value="비">비</option>
+                        <option value="눈">눈</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">바람</label>
+                    <select name="wind" x-model="formData.wind"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <option value="무풍">무풍</option>
+                        <option value="약풍">약풍</option>
+                        <option value="중풍">중풍</option>
+                        <option value="강풍">강풍</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">측정자</label>
+                    <input type="text" name="measurer" x-model="formData.measurer"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">비고</label>
+                    <input type="text" name="note" x-model="formData.note"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
+            <hr class="my-6">
+
+            <h3 class="text-md font-semibold text-gray-900 mb-4">측정 옵션</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-3">측정 방향</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" name="direction" value="LEW_REW" x-model="formData.direction"
+                                   class="w-4 h-4 text-primary-600 focus:ring-primary-500">
+                            <span class="ml-2 text-sm text-gray-700">LEW → REW (좌안→우안)</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="direction" value="REW_LEW" x-model="formData.direction"
+                                   class="w-4 h-4 text-primary-600 focus:ring-primary-500">
+                            <span class="ml-2 text-sm text-gray-700">REW → LEW (우안→좌안)</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-3">측정 횟수</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" name="measurement_count" value="1" x-model="formData.measurement_count"
+                                   class="w-4 h-4 text-primary-600 focus:ring-primary-500">
+                            <span class="ml-2 text-sm text-gray-700">1회 측정</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="measurement_count" value="2" x-model="formData.measurement_count"
+                                   class="w-4 h-4 text-primary-600 focus:ring-primary-500">
+                            <span class="ml-2 text-sm text-gray-700">2회 측정 (평균값 산출)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Velocity Meter -->
+        <div x-show="step === 2" x-transition class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">유속계 설정</h2>
+
+            <!-- Main Meter -->
+            <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 class="font-medium text-blue-900 mb-4">주 유속계 (필수)</h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">유속계 종류</label>
+                        <select name="meter_type" x-model="formData.meter_type"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="propeller">프로펠러형</option>
+                            <option value="electronic">전자식</option>
+                            <option value="adcp">ADCP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">유속계 번호</label>
+                        <select name="meter_id" x-model="formData.meter_id" @change="loadMeterInfo"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="">유속계 선택</option>
+                            <option value="PROP-001">PROP-001</option>
+                            <option value="PROP-002">PROP-002</option>
+                            <option value="ELEC-001">ELEC-001</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">입력 방식</label>
+                        <select name="input_method" x-model="formData.input_method"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="revolution_time">회전수/시간</option>
+                            <option value="velocity">유속 직접입력</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">측정 방법</label>
+                        <select name="measurement_method" x-model="formData.measurement_method"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="auto">자동 (수심별)</option>
+                            <option value="1point">1점법 (0.6D)</option>
+                            <option value="2point">2점법 (0.2D+0.8D)</option>
+                            <option value="3point">3점법 (0.2D+0.6D+0.8D)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Calibration Info -->
+                <div x-show="formData.meter_id" class="p-3 bg-white rounded-lg border">
+                    <p class="text-sm font-medium text-gray-700 mb-2">검정 정보</p>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p><span class="text-gray-500">검정식:</span> V = 0.0012 + 0.2534 × (N/T)</p>
+                        <p><span class="text-gray-500">유효범위:</span> 0.03 ~ 6.0 m/s</p>
+                        <p><span class="text-gray-500">검정일:</span> 2024-03-15</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Meters Toggle -->
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="formData.use_multiple_meters"
+                           class="w-4 h-4 text-primary-600 rounded focus:ring-primary-500">
+                    <span class="ml-2 text-sm font-medium text-gray-700">추가 유속계 사용 (측선별 다른 유속계)</span>
+                </label>
+            </div>
+
+            <!-- Additional Meters -->
+            <div x-show="formData.use_multiple_meters" x-transition class="space-y-4">
+                <template x-for="(meter, index) in formData.additional_meters" :key="index">
+                    <div class="p-4 bg-gray-50 border rounded-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="font-medium text-gray-900">추가 유속계 <span x-text="index + 2"></span></h4>
+                            <button type="button" @click="removeAdditionalMeter(index)" class="text-red-600 hover:text-red-800 text-sm">
+                                삭제
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">유속계 번호</label>
+                                <select x-model="meter.meter_id"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                                    <option value="">유속계 선택</option>
+                                    <option value="PROP-002">PROP-002</option>
+                                    <option value="PROP-003">PROP-003</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">적용 측선</label>
+                                <input type="text" x-model="meter.verticals" placeholder="예: 6-10,15"
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                                <p class="mt-1 text-xs text-gray-500">1,2,3 또는 1-5,7 형식으로 입력</p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <button type="button" @click="addAdditionalMeter"
+                        x-show="formData.additional_meters.length < 3"
+                        class="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary-500 hover:text-primary-600 transition-colors">
+                    + 유속계 추가 (최대 4개)
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Data Input Info -->
+        <div x-show="step === 3" x-transition class="bg-white rounded-xl shadow-sm border p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">데이터 입력 준비</h2>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div class="flex items-start">
+                    <svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="font-medium text-blue-900">데이터 입력 안내</p>
+                        <p class="text-sm text-blue-700 mt-1">다음 화면에서 측선별 데이터를 입력합니다. Excel에서 복사/붙여넣기가 가능합니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">예상 측선 수</label>
+                    <input type="number" name="estimated_verticals" x-model="formData.estimated_verticals"
+                           min="3" max="100" placeholder="10"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">기본 측정 시간 (초)</label>
+                    <input type="number" name="default_time" x-model="formData.default_time"
+                           min="30" max="120" placeholder="60"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="font-medium text-gray-900 mb-3">설정 요약</h3>
+                <dl class="grid grid-cols-2 gap-2 text-sm">
+                    <dt class="text-gray-500">관측소</dt>
+                    <dd class="text-gray-900" x-text="formData.station_name || '-'"></dd>
+                    <dt class="text-gray-500">측정일</dt>
+                    <dd class="text-gray-900" x-text="formData.measurement_date || '-'"></dd>
+                    <dt class="text-gray-500">유속계</dt>
+                    <dd class="text-gray-900" x-text="formData.meter_id || '-'"></dd>
+                    <dt class="text-gray-500">측정 방향</dt>
+                    <dd class="text-gray-900" x-text="formData.direction === 'LEW_REW' ? 'LEW→REW' : 'REW→LEW'"></dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Step 4: Confirmation -->
+        <div x-show="step === 4" x-transition class="bg-white rounded-xl shadow-sm border p-6">
+            <div class="text-center py-8">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">설정이 완료되었습니다</h2>
+                <p class="text-gray-600 mb-6">측정 데이터 입력을 시작합니다</p>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex justify-between mt-6">
+            <button type="button" @click="prevStep"
+                    x-show="step > 1"
+                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                ← 이전
+            </button>
+            <div x-show="step === 1"></div>
+
+            <button type="button" @click="nextStep"
+                    x-show="step < 4"
+                    class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                다음 →
+            </button>
+
+            <button type="button" @click="submitForm"
+                    x-show="step === 4"
+                    class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                데이터 입력 시작 →
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 관측소 검색 컴포넌트
+function stationSearch() {
+    return {
+        searchQuery: '',
+        results: [],
+        selectedStation: null,
+        showDropdown: false,
+        isLoading: false,
+
+        async search() {
+            if (!this.searchQuery.trim()) {
+                this.loadAll();
+                return;
+            }
+
+            this.isLoading = true;
+            try {
+                const response = await fetch(`/hydro/api/stations/search/?q=${encodeURIComponent(this.searchQuery)}`);
+                const data = await response.json();
+                this.results = data.results;
+                this.showDropdown = true;
+            } catch (error) {
+                console.error('검색 오류:', error);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async loadAll() {
+            this.isLoading = true;
+            try {
+                const response = await fetch('/hydro/api/stations/search/?q=');
+                const data = await response.json();
+                this.results = data.results;
+                this.showDropdown = true;
+            } catch (error) {
+                console.error('목록 로드 오류:', error);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        selectStation(station) {
+            this.selectedStation = station;
+            this.searchQuery = station.name;
+            this.showDropdown = false;
+
+            // 부모 컴포넌트의 formData 업데이트
+            const wizard = Alpine.$data(this.$el.closest('[x-data*="measurementWizard"]'));
+            if (wizard) {
+                wizard.formData.station_name = station.name;
+                wizard.formData.station_code = station.code;
+                wizard.formData.river_name = station.river;
+                wizard.formData.dm_number = station.dm_code;
+            }
+        },
+
+        clearSelection() {
+            this.selectedStation = null;
+            this.searchQuery = '';
+            this.results = [];
+
+            // 부모 컴포넌트의 formData 초기화
+            const wizard = Alpine.$data(this.$el.closest('[x-data*="measurementWizard"]'));
+            if (wizard) {
+                wizard.formData.station_name = '';
+                wizard.formData.station_code = '';
+                wizard.formData.river_name = '';
+                wizard.formData.dm_number = '';
+            }
+        }
+    };
+}
+
+function measurementWizard() {
+    return {
+        step: 1,
+        steps: ['기본 정보', '유속계 설정', '입력 준비', '확인'],
+        formData: {
+            station_name: '',
+            station_code: '',
+            river_name: '',
+            dm_number: '',
+            location_desc: '',
+            measurement_date: new Date().toISOString().split('T')[0],
+            weather: '맑음',
+            wind: '무풍',
+            measurer: '',
+            note: '',
+            direction: 'LEW_REW',
+            measurement_count: '1',
+            meter_type: 'propeller',
+            meter_id: '',
+            input_method: 'revolution_time',
+            measurement_method: 'auto',
+            use_multiple_meters: false,
+            additional_meters: [],
+            estimated_verticals: 10,
+            default_time: 60
+        },
+
+        nextStep() {
+            // 1단계에서 관측소 선택 필수 체크
+            if (this.step === 1 && !this.formData.station_code) {
+                alert('관측소를 선택해주세요.');
+                return;
+            }
+            if (this.step < 4) this.step++;
+        },
+
+        prevStep() {
+            if (this.step > 1) this.step--;
+        },
+
+        loadMeterInfo() {
+            // 유속계 정보 로드 (추후 구현)
+            console.log('Loading meter:', this.formData.meter_id);
+        },
+
+        addAdditionalMeter() {
+            if (this.formData.additional_meters.length < 3) {
+                this.formData.additional_meters.push({ meter_id: '', verticals: '' });
+            }
+        },
+
+        removeAdditionalMeter(index) {
+            this.formData.additional_meters.splice(index, 1);
+        },
+
+        submitForm() {
+            // 폼 제출 (추후 구현)
+            console.log('Submitting:', this.formData);
+            window.location.href = '{% url "measurement:data_input" %}?new=1';
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}유속계 관리 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="metersManager()">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">유속계 관리</h1>
+            <p class="mt-1 text-gray-600">유속계 검정 정보를 관리합니다</p>
+        </div>
+        <button type="button" @click="showAddModal = true"
+                class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            새 유속계
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Meters List -->
+        <div class="lg:col-span-2 space-y-4">
+            <template x-for="meter in meters" :key="meter.id">
+                <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer transition-all"
+                     :class="selectedMeter?.id === meter.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'"
+                     @click="selectMeter(meter)">
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-lg flex items-center justify-center"
+                                 :class="meter.type === 'propeller' ? 'bg-blue-100' : 'bg-green-100'">
+                                <svg class="w-6 h-6" :class="meter.type === 'propeller' ? 'text-blue-600' : 'text-green-600'"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-gray-900" x-text="meter.id"></p>
+                                <p class="text-sm text-gray-500" x-text="meter.type === 'propeller' ? '프로펠러형' : '전자식'"></p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="meter.status === 'valid' ? 'bg-green-100 text-green-800' : meter.status === 'expiring' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'">
+                                <span x-text="meter.status === 'valid' ? '유효' : meter.status === 'expiring' ? '만료 임박' : '만료'"></span>
+                            </span>
+                            <p class="text-xs text-gray-500 mt-1">검정일: <span x-text="meter.calibrationDate"></span></p>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 pt-3 border-t grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <p class="text-gray-500">검정식</p>
+                            <p class="font-mono text-xs" x-text="'V = ' + meter.a + ' + ' + meter.b + '×(N/T)'"></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-500">유효범위</p>
+                            <p class="text-gray-900" x-text="meter.range"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-xl shadow-sm border p-6 sticky top-24" x-show="selectedMeter">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">유속계 상세 정보</h2>
+
+                <template x-if="selectedMeter">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-500 mb-1">유속계 번호</label>
+                            <p class="font-semibold text-gray-900" x-text="selectedMeter.id"></p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-500 mb-1">유속계 종류</label>
+                            <p class="text-gray-900" x-text="selectedMeter.type === 'propeller' ? '프로펠러형 (가격식)' : '전자식'"></p>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">검정식</label>
+                            <div class="font-mono text-sm bg-white p-3 rounded border">
+                                V = a + b × (N/T)
+                            </div>
+                            <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <span class="text-gray-500">a (시동유속)</span>
+                                    <p class="font-medium" x-text="selectedMeter.a + ' m/s'"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">b (검정상수)</span>
+                                    <p class="font-medium" x-text="selectedMeter.b"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-500 mb-1">유효범위</label>
+                                <p class="text-gray-900" x-text="selectedMeter.range"></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-500 mb-1">검정 불확실도</label>
+                                <p class="text-gray-900" x-text="'±' + selectedMeter.uncertainty + '%'"></p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-500 mb-1">검정일</label>
+                                <p class="text-gray-900" x-text="selectedMeter.calibrationDate"></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-500 mb-1">검정기관</label>
+                                <p class="text-gray-900" x-text="selectedMeter.calibrationOrg"></p>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t flex gap-2">
+                            <button type="button" @click="editMeter"
+                                    class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                                수정
+                            </button>
+                            <button type="button" @click="deleteMeter"
+                                    class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">
+                                삭제
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <div x-show="!selectedMeter" class="text-center py-8 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p>유속계를 선택하세요</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Modal -->
+    <div x-show="showAddModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         x-transition:enter="ease-out duration-300"
+         x-transition:leave="ease-in duration-200">
+        <div class="flex min-h-screen items-center justify-center p-4">
+            <div class="fixed inset-0 bg-black/50" @click="showAddModal = false"></div>
+
+            <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">새 유속계 등록</h2>
+
+                <form @submit.prevent="addMeter" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">유속계 번호 *</label>
+                        <input type="text" x-model="newMeter.id" required placeholder="예: PROP-003"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">종류</label>
+                        <select x-model="newMeter.type"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="propeller">프로펠러형</option>
+                            <option value="electronic">전자식</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">a (시동유속)</label>
+                            <input type="number" x-model="newMeter.a" step="0.0001" placeholder="0.0012"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">b (검정상수)</label>
+                            <input type="number" x-model="newMeter.b" step="0.0001" placeholder="0.2534"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">검정일</label>
+                        <input type="date" x-model="newMeter.calibrationDate"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" @click="showAddModal = false"
+                                class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+                            취소
+                        </button>
+                        <button type="submit"
+                                class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                            등록
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function metersManager() {
+    return {
+        showAddModal: false,
+        selectedMeter: null,
+        newMeter: { id: '', type: 'propeller', a: '', b: '', calibrationDate: '' },
+        meters: [
+            { id: 'PROP-001', type: 'propeller', a: 0.0012, b: 0.2534, range: '0.03-6.0 m/s', uncertainty: 1.0, calibrationDate: '2024-03-15', calibrationOrg: '국립기상과학원', status: 'valid' },
+            { id: 'PROP-002', type: 'propeller', a: 0.0018, b: 0.2489, range: '0.05-5.5 m/s', uncertainty: 1.2, calibrationDate: '2023-11-20', calibrationOrg: '국립기상과학원', status: 'expiring' },
+            { id: 'ELEC-001', type: 'electronic', a: 0.0010, b: 1.0000, range: '0.00-10.0 m/s', uncertainty: 0.8, calibrationDate: '2024-01-10', calibrationOrg: '한국표준과학연구원', status: 'valid' },
+        ],
+
+        selectMeter(meter) {
+            this.selectedMeter = meter;
+        },
+
+        addMeter() {
+            if (this.newMeter.id) {
+                this.meters.push({
+                    ...this.newMeter,
+                    range: '0.03-6.0 m/s',
+                    uncertainty: 1.0,
+                    calibrationOrg: '-',
+                    status: 'valid'
+                });
+                this.newMeter = { id: '', type: 'propeller', a: '', b: '', calibrationDate: '' };
+                this.showAddModal = false;
+            }
+        },
+
+        editMeter() {
+            console.log('Edit:', this.selectedMeter);
+        },
+
+        deleteMeter() {
+            if (confirm('정말 삭제하시겠습니까?')) {
+                this.meters = this.meters.filter(m => m.id !== this.selectedMeter.id);
+                this.selectedMeter = null;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

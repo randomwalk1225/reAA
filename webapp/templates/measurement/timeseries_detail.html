@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}{{ station.name }} 시계열 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="timeseriesDetail()">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="{% url 'measurement:timeseries_list' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            시계열 목록으로
+        </a>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ station.name }}</h1>
+                <p class="mt-1 text-gray-600">적용 곡선: {{ station.rating_curve }}</p>
+            </div>
+            <div class="mt-4 sm:mt-0 flex space-x-3">
+                <button @click="generateDischarge()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    유량 재계산
+                </button>
+                <a href="{% url 'measurement:baseflow_new' %}?station={{ station.id }}" class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    기저유출 분석
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid gap-4 md:grid-cols-4 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-xs text-gray-500 mb-1">총 데이터</p>
+            <p class="text-2xl font-bold text-gray-900">{{ total_count }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-xs text-gray-500 mb-1">평균 수위</p>
+            <p class="text-2xl font-bold text-blue-600">0.35 <span class="text-sm font-normal">m</span></p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-xs text-gray-500 mb-1">평균 유량</p>
+            <p class="text-2xl font-bold text-emerald-600">0.42 <span class="text-sm font-normal">m³/s</span></p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-xs text-gray-500 mb-1">관측 기간</p>
+            <p class="text-lg font-semibold text-gray-900">30일</p>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">시계열 그래프</h2>
+            <div class="flex space-x-2">
+                <button @click="setChartType('stage')"
+                        :class="chartType === 'stage' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                        class="px-3 py-1 text-sm rounded-lg">수위</button>
+                <button @click="setChartType('discharge')"
+                        :class="chartType === 'discharge' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'"
+                        class="px-3 py-1 text-sm rounded-lg">유량</button>
+                <button @click="setChartType('both')"
+                        :class="chartType === 'both' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'"
+                        class="px-3 py-1 text-sm rounded-lg">둘 다</button>
+            </div>
+        </div>
+        <div style="height: 400px;">
+            <canvas id="timeseriesChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">데이터 테이블</h2>
+            <div class="flex space-x-2">
+                <button @click="exportCSV()" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    CSV 내보내기
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">측정시각</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">수위 (m)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">유량 (m³/s)</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">품질</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for d in data %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3 text-sm text-gray-900">{{ d.timestamp }}</td>
+                        <td class="px-6 py-3 text-sm text-gray-900">{{ d.stage }}</td>
+                        <td class="px-6 py-3 text-sm text-gray-900">{{ d.discharge }}</td>
+                        <td class="px-6 py-3">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                정상
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="px-6 py-4 border-t bg-gray-50 text-sm text-gray-500">
+            최근 100개 데이터 표시 (총 {{ total_count }}개)
+        </div>
+    </div>
+</div>
+
+<script>
+// 차트 객체를 Alpine.js 외부에 저장
+let timeseriesChart = null;
+
+function timeseriesDetail() {
+    return {
+        chartType: 'both',
+
+        init() {
+            this.initChart();
+        },
+
+        setChartType(type) {
+            if (this.chartType === type) return;
+            this.chartType = type;
+
+            // 전역 차트 객체 사용
+            if (timeseriesChart && timeseriesChart.data && timeseriesChart.data.datasets) {
+                const showStage = type === 'stage' || type === 'both';
+                const showDischarge = type === 'discharge' || type === 'both';
+
+                timeseriesChart.data.datasets[0].hidden = !showStage;
+                timeseriesChart.data.datasets[1].hidden = !showDischarge;
+                timeseriesChart.update('none');
+            }
+        },
+
+        initChart() {
+            const ctx = document.getElementById('timeseriesChart').getContext('2d');
+
+            // 샘플 데이터 생성
+            const labels = [];
+            const stageData = [];
+            const dischargeData = [];
+
+            {% for d in data %}
+            labels.push('{{ d.timestamp }}');
+            stageData.push({{ d.stage }});
+            dischargeData.push({{ d.discharge }});
+            {% endfor %}
+
+            timeseriesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '수위 (m)',
+                            data: stageData,
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.1,
+                            pointRadius: 0,
+                        },
+                        {
+                            label: '유량 (m³/s)',
+                            data: dischargeData,
+                            borderColor: 'rgb(16, 185, 129)',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.1,
+                            pointRadius: 0,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '시간'
+                            },
+                            ticks: {
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '수위 (m)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '유량 (m³/s)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        },
+
+
+        async generateDischarge() {
+            if (!confirm('수위 데이터에 H-Q 곡선을 적용하여 유량을 재계산하시겠습니까?')) return;
+
+            try {
+                const response = await fetch('{% url "measurement:generate_discharge_series" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        station_id: {{ station.id }},
+                        rating_curve_id: 1
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('유량 시계열 생성 완료: ' + result.count + '개');
+                    location.reload();
+                }
+            } catch (error) {
+                alert('오류 발생: ' + error.message);
+            }
+        },
+
+        exportCSV() {
+            const header = 'timestamp,stage,discharge\n';
+            let content = header;
+
+            {% for d in data %}
+            content += '{{ d.timestamp }},{{ d.stage }},{{ d.discharge }}\n';
+            {% endfor %}
+
+            const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '{{ station.name }}_timeseries.csv';
+            a.click();
+        }
+    };
+}
+</script>
+{% endblock %}

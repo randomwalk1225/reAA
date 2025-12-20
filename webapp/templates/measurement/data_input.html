@@ -1,0 +1,1048 @@
+{% extends "base.html" %}
+
+{% block title %}데이터 입력 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    /* PC Table Styles */
+    .data-grid {
+        font-size: 13px;
+        table-layout: fixed;
+    }
+    .data-grid th, .data-grid td {
+        padding: 0;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    .data-grid input {
+        width: 100%;
+        padding: 6px 4px;
+        border: none;
+        text-align: center;
+        background: transparent;
+    }
+    .data-grid input:focus {
+        outline: none;
+        background: #fef3c7;
+    }
+    .data-grid tr:hover {
+        background: #f9fafb;
+    }
+    .data-grid .row-header {
+        background: #f3f4f6;
+        font-weight: 500;
+        padding: 6px 8px;
+    }
+    .data-grid .disabled-cell {
+        background: #f9fafb;
+        color: #9ca3af;
+    }
+    .data-grid select {
+        width: 100%;
+        padding: 6px 2px;
+    }
+    .data-grid .col-num { width: 35px; }
+    .data-grid .col-data { width: 70px; }
+    .data-grid .col-method { width: 55px; }
+    .data-grid .col-measure { width: 55px; }
+    .data-grid .col-velocity { width: 70px; }
+    .data-grid .velocity-cell {
+        padding: 6px 8px;
+    }
+
+    /* Mobile Card Styles */
+    .card-input {
+        transition: all 0.2s ease;
+    }
+    .card-input:focus-within {
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+    }
+    .card-input input {
+        background: transparent;
+        border: none;
+        text-align: right;
+        font-weight: 600;
+        font-size: 16px;
+        width: 80px;
+    }
+    .card-input input:focus {
+        outline: none;
+        background: #fef3c7;
+        border-radius: 4px;
+    }
+    .card-input input::placeholder {
+        color: #d1d5db;
+        font-weight: 400;
+    }
+    .depth-item {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 8px 12px;
+    }
+    .depth-item.disabled {
+        opacity: 0.4;
+    }
+    .depth-item label {
+        font-size: 11px;
+        color: #6b7280;
+        display: block;
+        margin-bottom: 2px;
+    }
+    .depth-item .inputs {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+    .depth-item .input-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .depth-item input {
+        width: 55px;
+        padding: 6px 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        text-align: center;
+        font-size: 14px;
+    }
+    .depth-item input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-full mx-auto py-4 px-4" x-data="dataInputGrid()">
+
+    <!-- ==================== PC Layout (lg:) ==================== -->
+    <div class="hidden lg:block">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">측정 데이터 입력</h1>
+                <p class="text-sm text-gray-600">{{ measurement.station_name|default:"경주 대종천 하류보" }} | {{ measurement.date|default:"2025-05-01" }}</p>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- 측정 회차 -->
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-600">측정회차:</label>
+                    <select x-model="currentSession" @change="switchSession"
+                            class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500">
+                        <option value="1">1차</option>
+                        <option value="2">2차</option>
+                    </select>
+                </div>
+
+                <!-- 실시간 유량 표시 -->
+                <div class="bg-primary-50 px-4 py-2 rounded-lg">
+                    <span class="text-sm text-primary-600">예상 유량:</span>
+                    <span class="text-lg font-bold text-primary-700" x-text="estimatedDischarge + ' m³/s'"></span>
+                </div>
+
+                <!-- 저장 상태 -->
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                    <span x-show="isSaved" class="text-green-600">저장됨</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="bg-white rounded-lg shadow-sm border p-2 mb-4 flex flex-wrap items-center gap-2">
+            <button type="button" @click="pasteFromClipboard"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                붙여넣기
+            </button>
+            <button type="button" @click="undo"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                </svg>
+                실행취소
+            </button>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
+            <!-- CSV 가져오기 -->
+            <label class="inline-flex items-center px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition-colors cursor-pointer">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                CSV 가져오기
+                <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
+            </label>
+            <button type="button" @click="exportCSV"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                CSV 내보내기
+            </button>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
+            <button type="button" @click="addRow"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                행 추가
+            </button>
+            <button type="button" @click="deleteSelectedRow"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                행 삭제
+            </button>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
+            <button type="button" @click="showChart = !showChart"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    :class="showChart ? 'bg-primary-100 text-primary-700' : ''">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                단면도
+            </button>
+
+            <div class="flex-1"></div>
+
+            <span class="text-sm text-gray-500">
+                Tab=다음셀 | Enter=다음행 | Ctrl+V=붙여넣기
+            </span>
+        </div>
+
+        <div class="flex gap-4">
+            <!-- Data Grid -->
+            <div class="flex-1 bg-white rounded-lg shadow-sm border overflow-hidden min-w-0">
+                <div class="overflow-x-auto">
+                    <table class="data-grid w-full border-collapse">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="border-b border-r px-2 py-2 text-center col-num">#</th>
+                                <th class="border-b border-r px-2 py-2 text-center col-data">거리<br><span class="font-normal text-gray-500">(m)</span></th>
+                                <th class="border-b border-r px-2 py-2 text-center col-data">수심<br><span class="font-normal text-gray-500">(m)</span></th>
+                                <th class="border-b border-r px-2 py-2 text-center col-method">측정</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
+                                <th class="border-b px-2 py-2 text-center col-velocity">유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
+                            </tr>
+                            <tr class="bg-gray-50 text-xs text-gray-500">
+                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r px-2 py-1">0.2D</th>
+                                <th class="border-b border-r px-2 py-1">0.2D</th>
+                                <th class="border-b border-r px-2 py-1">0.6D</th>
+                                <th class="border-b border-r px-2 py-1">0.6D</th>
+                                <th class="border-b border-r px-2 py-1">0.8D</th>
+                                <th class="border-b border-r px-2 py-1">0.8D</th>
+                                <th class="border-b"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, index) in rows" :key="row.id">
+                                <tr :class="selectedRow === index ? 'bg-primary-50' : ''" @click="selectedRow = index">
+                                    <td class="border-b border-r row-header text-center" x-text="index + 1"></td>
+                                    <td class="border-b border-r">
+                                        <input type="number" step="0.01" x-model="row.distance"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'distance')"
+                                               placeholder="0.00">
+                                    </td>
+                                    <td class="border-b border-r">
+                                        <input type="number" step="0.01" x-model="row.depth"
+                                               @input="updateMethod(index); calculateVelocity(index)" @keydown="handleKeydown($event, index, 'depth')"
+                                               placeholder="0.00">
+                                    </td>
+                                    <td class="border-b border-r text-center">
+                                        <select x-model="row.method" @change="calculateVelocity(index)"
+                                                class="w-full px-1 py-2 border-none bg-transparent text-center text-sm">
+                                            <option value="LEW">LEW</option>
+                                            <option value="1">1점</option>
+                                            <option value="2">2점</option>
+                                            <option value="3">3점</option>
+                                            <option value="REW">REW</option>
+                                        </select>
+                                    </td>
+                                    <!-- 0.2D -->
+                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.n_02d"
+                                               :disabled="!['2','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_02d')"
+                                               placeholder="-">
+                                    </td>
+                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.t_02d"
+                                               :disabled="!['2','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_02d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- 0.6D -->
+                                    <td class="border-b border-r" :class="!['1','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.n_06d"
+                                               :disabled="!['1','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_06d')"
+                                               placeholder="-">
+                                    </td>
+                                    <td class="border-b border-r" :class="!['1','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.t_06d"
+                                               :disabled="!['1','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_06d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- 0.8D -->
+                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.n_08d"
+                                               :disabled="!['2','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_08d')"
+                                               placeholder="-">
+                                    </td>
+                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'disabled-cell' : ''">
+                                        <input type="number" x-model="row.t_08d"
+                                               :disabled="!['2','3'].includes(row.method)"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_08d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- Average Velocity -->
+                                    <td class="border-b text-center font-medium velocity-cell"
+                                        :class="row.velocity > 0 ? 'text-primary-700 bg-primary-50' : 'text-gray-400'"
+                                        x-text="row.velocity ? row.velocity.toFixed(3) : '-'">
+                                    </td>
+                                </tr>
+                            </template>
+                            <!-- Add Row Button -->
+                            <tr>
+                                <td colspan="11" class="border-b">
+                                    <button type="button" @click="addRow"
+                                            class="w-full py-2 text-sm text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors">
+                                        + 측선 추가
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cross Section Chart (PC) -->
+            <div x-show="showChart" x-transition class="w-80 bg-white rounded-lg shadow-sm border p-4">
+                <h3 class="font-medium text-gray-900 mb-3">단면도 미리보기</h3>
+                <div class="aspect-[4/3] bg-gray-50 rounded-lg flex items-center justify-center">
+                    <canvas id="crossSectionChartPC" width="280" height="200"></canvas>
+                </div>
+                <div class="mt-3 text-sm text-gray-600">
+                    <p>총 폭: <span class="font-medium" x-text="totalWidth.toFixed(1) + ' m'"></span></p>
+                    <p>최대 수심: <span class="font-medium" x-text="maxDepth.toFixed(2) + ' m'"></span></p>
+                    <p>단면적: <span class="font-medium" x-text="totalArea.toFixed(2) + ' m²'"></span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Actions (PC) -->
+        <div class="flex justify-between items-center mt-6">
+            <a href="{% url 'measurement:list' %}"
+               class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                목록으로
+            </a>
+
+            <div class="flex gap-3">
+                <button type="button" @click="saveDraft"
+                        class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    임시 저장
+                </button>
+                <button type="button" @click="calculate"
+                        class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                    계산하기 →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Mobile Layout (<lg) ==================== -->
+    <div class="lg:hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h1 class="text-lg font-bold text-gray-900">측정 데이터 입력</h1>
+                <p class="text-sm text-gray-500">{{ measurement.station_name|default:"경주 대종천" }} | {{ measurement.date|default:"2025-05-01" }}</p>
+            </div>
+            <div class="bg-primary-100 px-3 py-1.5 rounded-lg">
+                <span class="text-xs text-primary-600">유량</span>
+                <span class="text-lg font-bold text-primary-700" x-text="estimatedDischarge"></span>
+                <span class="text-xs text-primary-600">m³/s</span>
+            </div>
+        </div>
+
+        <!-- Toolbar (Mobile) -->
+        <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <label class="inline-flex items-center px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg cursor-pointer whitespace-nowrap">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                CSV 가져오기
+                <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
+            </label>
+            <button @click="exportCSV()"
+                    class="inline-flex items-center px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg whitespace-nowrap">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                CSV 내보내기
+            </button>
+            <button @click="showChart = !showChart"
+                    class="inline-flex items-center px-3 py-2 text-sm rounded-lg whitespace-nowrap"
+                    :class="showChart ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-700'">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                단면도
+            </button>
+        </div>
+
+        <!-- Cross Section Chart (Mobile) -->
+        <div x-show="showChart" x-collapse class="mb-4">
+            <div class="bg-white rounded-xl shadow-sm border p-4">
+                <h3 class="font-medium text-gray-900 mb-3">단면도 미리보기</h3>
+                <div class="aspect-[16/9] bg-gray-50 rounded-lg flex items-center justify-center">
+                    <canvas id="crossSectionChartMobile"></canvas>
+                </div>
+                <div class="mt-3 grid grid-cols-3 gap-2 text-sm text-center">
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-xs text-gray-500">총 폭</div>
+                        <div class="font-semibold" x-text="totalWidth.toFixed(1) + ' m'"></div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-xs text-gray-500">최대 수심</div>
+                        <div class="font-semibold" x-text="maxDepth.toFixed(2) + ' m'"></div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="text-xs text-gray-500">단면적</div>
+                        <div class="font-semibold" x-text="totalArea.toFixed(2) + ' m²'"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card List -->
+        <div class="space-y-3">
+            <template x-for="(row, index) in rows" :key="row.id">
+                <div class="card-input bg-white rounded-xl shadow-sm border overflow-hidden"
+                     :class="expandedRow === index ? 'ring-2 ring-primary-500' : ''">
+
+                    <!-- Card Header (Always Visible) -->
+                    <div class="flex items-center p-3 cursor-pointer" @click="toggleRow(index)">
+                        <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600 mr-3"
+                             x-text="index + 1"></div>
+
+                        <div class="flex-1 grid grid-cols-3 gap-2 text-center">
+                            <div>
+                                <div class="text-xs text-gray-500">거리</div>
+                                <div class="font-semibold" x-text="row.distance ? row.distance + 'm' : '-'"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">수심</div>
+                                <div class="font-semibold" x-text="row.depth ? row.depth + 'm' : '-'"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">유속</div>
+                                <div class="font-semibold text-primary-600" x-text="row.velocity ? row.velocity.toFixed(3) : '-'"></div>
+                            </div>
+                        </div>
+
+                        <div class="ml-2">
+                            <svg class="w-5 h-5 text-gray-400 transition-transform"
+                                 :class="expandedRow === index ? 'rotate-180' : ''"
+                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Expanded Content -->
+                    <div x-show="expandedRow === index" x-collapse>
+                        <div class="px-4 pb-4 pt-2 border-t bg-gray-50">
+                            <!-- Basic Info -->
+                            <div class="grid grid-cols-3 gap-3 mb-4">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">거리 (m)</label>
+                                    <input type="number" step="0.01" x-model="row.distance"
+                                           @input="calculateVelocity(index)"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center"
+                                           placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">수심 (m)</label>
+                                    <input type="number" step="0.01" x-model="row.depth"
+                                           @input="updateMethod(index); calculateVelocity(index)"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center"
+                                           placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">측정법</label>
+                                    <select x-model="row.method" @change="calculateVelocity(index)"
+                                            class="w-full px-2 py-2 border border-gray-300 rounded-lg text-center bg-white">
+                                        <option value="LEW">LEW</option>
+                                        <option value="1">1점</option>
+                                        <option value="2">2점</option>
+                                        <option value="3">3점</option>
+                                        <option value="REW">REW</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Depth Measurements -->
+                            <div class="space-y-2">
+                                <!-- 0.2D -->
+                                <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'disabled' : ''">
+                                    <label>0.2D (표층)</label>
+                                    <div class="inputs">
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <input type="number" x-model="row.n_02d"
+                                                   :disabled="!['2','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <input type="number" x-model="row.t_02d"
+                                                   :disabled="!['2','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                            <span class="text-xs text-gray-400">초</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 0.6D -->
+                                <div class="depth-item" :class="!['1','3'].includes(row.method) ? 'disabled' : ''">
+                                    <label>0.6D (중층)</label>
+                                    <div class="inputs">
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <input type="number" x-model="row.n_06d"
+                                                   :disabled="!['1','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <input type="number" x-model="row.t_06d"
+                                                   :disabled="!['1','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                            <span class="text-xs text-gray-400">초</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 0.8D -->
+                                <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'disabled' : ''">
+                                    <label>0.8D (저층)</label>
+                                    <div class="inputs">
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <input type="number" x-model="row.n_08d"
+                                                   :disabled="!['2','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <input type="number" x-model="row.t_08d"
+                                                   :disabled="!['2','3'].includes(row.method)"
+                                                   @input="calculateVelocity(index)" placeholder="-">
+                                            <span class="text-xs text-gray-400">초</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Calculated Velocity -->
+                            <div class="mt-4 p-3 bg-primary-50 rounded-lg flex items-center justify-between">
+                                <span class="text-sm text-primary-700">계산된 평균유속</span>
+                                <span class="text-xl font-bold text-primary-700"
+                                      x-text="row.velocity ? row.velocity.toFixed(4) + ' m/s' : '- m/s'"></span>
+                            </div>
+
+                            <!-- Row Actions -->
+                            <div class="mt-3 flex justify-end gap-2">
+                                <button @click="deleteRow(index)"
+                                        class="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+                                    삭제
+                                </button>
+                                <button @click="expandedRow = null"
+                                        class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                                    접기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Add Row Button (Mobile) -->
+        <button @click="addRow()"
+                class="w-full mt-4 py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-primary-400 hover:text-primary-600 transition-colors">
+            + 측선 추가
+        </button>
+
+        <!-- Bottom Actions (Mobile) -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-3 lg:hidden">
+            <a href="{% url 'measurement:list' %}"
+               class="flex-1 py-3 text-center border border-gray-300 text-gray-700 rounded-xl">
+                목록
+            </a>
+            <button @click="calculate()"
+                    class="flex-1 py-3 text-center bg-primary-600 text-white rounded-xl font-medium">
+                계산하기 →
+            </button>
+        </div>
+
+        <!-- Spacer for fixed bottom -->
+        <div class="h-24"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function dataInputGrid() {
+    return {
+        currentSession: '1',
+        selectedRow: null,
+        expandedRow: 0,
+        showChart: true,
+        isSaved: true,
+        estimatedDischarge: '--',
+        crossSectionChartPC: null,
+        crossSectionChartMobile: null,
+        chartReady: false,
+
+        // 검정 계수 (추후 서버에서 로드)
+        calibration: {
+            a: 0.0012,
+            b: 0.2534
+        },
+
+        // 초기 데이터
+        rows: [
+            { id: 1, distance: 0, depth: 0, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 2, distance: 1.5, depth: 0.45, method: '1', n_02d: null, t_02d: null, n_06d: 42, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 3, distance: 3.0, depth: 0.72, method: '2', n_02d: 65, t_02d: 60, n_06d: null, t_06d: null, n_08d: 38, t_08d: 60, velocity: 0 },
+            { id: 4, distance: 4.5, depth: 1.20, method: '3', n_02d: 82, t_02d: 60, n_06d: 75, t_06d: 60, n_08d: 45, t_08d: 60, velocity: 0 },
+            { id: 5, distance: 6.0, depth: 1.35, method: '3', n_02d: 95, t_02d: 60, n_06d: 88, t_06d: 60, n_08d: 52, t_08d: 60, velocity: 0 },
+            { id: 6, distance: 7.5, depth: 0.85, method: '2', n_02d: 70, t_02d: 60, n_06d: null, t_06d: null, n_08d: 42, t_08d: 60, velocity: 0 },
+            { id: 7, distance: 9.0, depth: 0.50, method: '1', n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 8, distance: 10.5, depth: 0, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+        ],
+
+        get totalWidth() {
+            if (this.rows.length < 2) return 0;
+            const distances = this.rows.map(r => parseFloat(r.distance) || 0);
+            return Math.max(...distances) - Math.min(...distances);
+        },
+
+        get maxDepth() {
+            return Math.max(...this.rows.map(r => parseFloat(r.depth) || 0));
+        },
+
+        get totalArea() {
+            let area = 0;
+            for (let i = 1; i < this.rows.length; i++) {
+                const width = (parseFloat(this.rows[i].distance) || 0) - (parseFloat(this.rows[i-1].distance) || 0);
+                const avgDepth = ((parseFloat(this.rows[i].depth) || 0) + (parseFloat(this.rows[i-1].depth) || 0)) / 2;
+                area += width * avgDepth;
+            }
+            return area;
+        },
+
+        init() {
+            // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
+            this.rows.forEach((row, index) => this.calculateVelocity(index));
+            this.updateEstimatedDischarge();
+
+            // 차트 초기화 - 캔버스가 준비될 때까지 약간 대기
+            setTimeout(() => {
+                this.chartReady = true;
+                try {
+                    this.updateCrossSectionChart();
+                } catch (e) {
+                    console.warn('Chart init error:', e);
+                }
+            }, 100);
+
+            // showChart 변경 시 차트 업데이트
+            this.$watch('showChart', (value) => {
+                if (value) {
+                    setTimeout(() => this.updateCrossSectionChart(), 50);
+                }
+            });
+
+            // 화면 크기 변경 시 차트 다시 그리기
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    this.updateCrossSectionChart();
+                }, 250);
+            });
+        },
+
+        toggleRow(index) {
+            this.expandedRow = this.expandedRow === index ? null : index;
+        },
+
+        addRow() {
+            const lastId = this.rows.length > 0 ? Math.max(...this.rows.map(r => r.id)) : 0;
+            this.rows.push({
+                id: lastId + 1,
+                distance: null,
+                depth: null,
+                method: '1',
+                n_02d: null, t_02d: null,
+                n_06d: null, t_06d: null,
+                n_08d: null, t_08d: null,
+                velocity: 0
+            });
+            this.isSaved = false;
+            this.expandedRow = this.rows.length - 1;
+        },
+
+        deleteRow(index) {
+            if (this.rows.length > 2) {
+                this.rows.splice(index, 1);
+                this.expandedRow = null;
+                this.isSaved = false;
+                this.updateEstimatedDischarge();
+            }
+        },
+
+        deleteSelectedRow() {
+            if (this.selectedRow !== null && this.rows.length > 2) {
+                this.rows.splice(this.selectedRow, 1);
+                this.selectedRow = null;
+                this.isSaved = false;
+                this.updateEstimatedDischarge();
+            }
+        },
+
+        updateMethod(index) {
+            const depth = this.rows[index].depth || 0;
+            if (depth === 0) {
+                // 자동으로 LEW/REW 감지는 하지 않음
+            } else if (depth < 0.6) {
+                this.rows[index].method = '1';
+            } else if (depth < 1.0) {
+                this.rows[index].method = '2';
+            } else {
+                this.rows[index].method = '3';
+            }
+        },
+
+        calculateVelocity(index) {
+            const row = this.rows[index];
+            const { a, b } = this.calibration;
+
+            // 유속 계산: V = a + b * (N/T)
+            const calcV = (n, t) => {
+                if (!n || !t || t === 0) return 0;
+                return a + b * (n / t);
+            };
+
+            let velocity = 0;
+
+            switch (row.method) {
+                case '1': // 1점법: V = V_0.6D
+                    velocity = calcV(row.n_06d, row.t_06d);
+                    break;
+                case '2': // 2점법: V = (V_0.2D + V_0.8D) / 2
+                    const v02 = calcV(row.n_02d, row.t_02d);
+                    const v08 = calcV(row.n_08d, row.t_08d);
+                    if (v02 && v08) velocity = (v02 + v08) / 2;
+                    break;
+                case '3': // 3점법: V = (V_0.2D + 2*V_0.6D + V_0.8D) / 4
+                    const v02_3 = calcV(row.n_02d, row.t_02d);
+                    const v06_3 = calcV(row.n_06d, row.t_06d);
+                    const v08_3 = calcV(row.n_08d, row.t_08d);
+                    if (v02_3 && v06_3 && v08_3) {
+                        velocity = (v02_3 + 2 * v06_3 + v08_3) / 4;
+                    }
+                    break;
+                default:
+                    velocity = 0;
+            }
+
+            row.velocity = velocity;
+            this.isSaved = false;
+            this.updateEstimatedDischarge();
+        },
+
+        updateEstimatedDischarge() {
+            let discharge = 0;
+            for (let i = 1; i < this.rows.length; i++) {
+                const prev = this.rows[i - 1];
+                const curr = this.rows[i];
+                const width = (parseFloat(curr.distance) || 0) - (parseFloat(prev.distance) || 0);
+                const avgDepth = ((parseFloat(curr.depth) || 0) + (parseFloat(prev.depth) || 0)) / 2;
+                const avgVel = ((curr.velocity || 0) + (prev.velocity || 0)) / 2;
+                discharge += width * avgDepth * avgVel;
+            }
+            this.estimatedDischarge = discharge.toFixed(3);
+
+            // 단면도 차트 업데이트 (초기화 완료 후에만)
+            if (this.chartReady) {
+                this.updateCrossSectionChart();
+            }
+        },
+
+        handleKeydown(event, rowIndex, field) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (rowIndex < this.rows.length - 1) {
+                    this.$nextTick(() => {
+                        const nextInput = event.target.closest('tr').nextElementSibling?.querySelector(`input[x-model="row.${field}"]`);
+                        if (nextInput) nextInput.focus();
+                    });
+                }
+            }
+        },
+
+        async pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const lines = text.trim().split('\n');
+
+                lines.forEach((line, i) => {
+                    const values = line.split('\t');
+                    if (i < this.rows.length) {
+                        const row = this.rows[i];
+                        if (values[0]) row.distance = parseFloat(values[0]) || null;
+                        if (values[1]) row.depth = parseFloat(values[1]) || null;
+                        this.calculateVelocity(i);
+                    }
+                });
+            } catch (err) {
+                console.error('Failed to read clipboard:', err);
+            }
+        },
+
+        undo() {
+            console.log('Undo');
+        },
+
+        importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const lines = text.trim().split('\n');
+
+                let startIndex = 0;
+                const firstLine = lines[0].split(',');
+                if (isNaN(parseFloat(firstLine[0]))) {
+                    startIndex = 1;
+                }
+
+                this.rows = [];
+
+                for (let i = startIndex; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    if (values.length < 2) continue;
+
+                    const distance = parseFloat(values[0]) || 0;
+                    const depth = parseFloat(values[1]) || 0;
+
+                    let method = '1';
+                    if (depth === 0) {
+                        method = i === startIndex ? 'LEW' : 'REW';
+                    } else if (depth < 0.6) {
+                        method = '1';
+                    } else if (depth < 1.0) {
+                        method = '2';
+                    } else {
+                        method = '3';
+                    }
+
+                    this.rows.push({
+                        id: i - startIndex + 1,
+                        distance: distance,
+                        depth: depth,
+                        method: method,
+                        n_02d: parseFloat(values[2]) || null,
+                        t_02d: parseFloat(values[3]) || null,
+                        n_06d: parseFloat(values[4]) || null,
+                        t_06d: parseFloat(values[5]) || null,
+                        n_08d: parseFloat(values[6]) || null,
+                        t_08d: parseFloat(values[7]) || null,
+                        velocity: 0
+                    });
+                }
+
+                this.rows.forEach((row, index) => this.calculateVelocity(index));
+                this.updateEstimatedDischarge();
+                this.isSaved = false;
+                this.expandedRow = 0;
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        },
+
+        exportCSV() {
+            const BOM = '\uFEFF';
+            let csv = BOM + '거리(m),수심(m),측정법,N_0.2D,T_0.2D,N_0.6D,T_0.6D,N_0.8D,T_0.8D,유속(m/s)\n';
+
+            this.rows.forEach(row => {
+                csv += [
+                    row.distance || 0,
+                    row.depth || 0,
+                    row.method || '',
+                    row.n_02d || '',
+                    row.t_02d || '',
+                    row.n_06d || '',
+                    row.t_06d || '',
+                    row.n_08d || '',
+                    row.t_08d || '',
+                    row.velocity ? row.velocity.toFixed(4) : ''
+                ].join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `measurement_data_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+
+        switchSession() {
+            console.log('Switch to session:', this.currentSession);
+        },
+
+        saveDraft() {
+            console.log('Saving draft:', this.rows);
+            this.isSaved = true;
+        },
+
+        async calculate() {
+            // 데이터를 서버로 전송
+            const data = {
+                rows: this.rows,
+                calibration: this.calibration
+            };
+
+            try {
+                const response = await fetch('{% url "measurement:result" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    // 결과 페이지 HTML을 받아서 표시
+                    const html = await response.text();
+                    document.open();
+                    document.write(html);
+                    document.close();
+                    // URL 변경
+                    window.history.pushState({}, '', '{% url "measurement:result" %}');
+                } else {
+                    const error = await response.json();
+                    alert('계산 오류: ' + error.error);
+                }
+            } catch (e) {
+                alert('서버 오류: ' + e.message);
+            }
+        },
+
+        updateCrossSectionChart() {
+            if (!this.showChart) return;
+
+            try {
+                const points = this.rows.map(r => ({
+                    x: parseFloat(r.distance) || 0,
+                    y: -(parseFloat(r.depth) || 0)
+                }));
+
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: '단면',
+                        data: points,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            title: { display: true, text: '거리 (m)', font: { size: 11 } }
+                        },
+                        y: {
+                            title: { display: true, text: '수심 (m)', font: { size: 11 } },
+                            ticks: {
+                                callback: (value) => (-value).toFixed(1)
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            };
+
+            // PC Chart - 보이는 경우에만 생성
+            const canvasPC = document.getElementById('crossSectionChartPC');
+            if (canvasPC && canvasPC.offsetParent !== null) {
+                const ctx = canvasPC.getContext('2d');
+                if (ctx) {
+                    if (this.crossSectionChartPC) {
+                        this.crossSectionChartPC.destroy();
+                    }
+                    this.crossSectionChartPC = new Chart(ctx, chartConfig);
+                }
+            }
+
+            // Mobile Chart - 보이는 경우에만 생성
+            const canvasMobile = document.getElementById('crossSectionChartMobile');
+            if (canvasMobile && canvasMobile.offsetParent !== null) {
+                const ctx = canvasMobile.getContext('2d');
+                if (ctx) {
+                    if (this.crossSectionChartMobile) {
+                        this.crossSectionChartMobile.destroy();
+                    }
+                    this.crossSectionChartMobile = new Chart(ctx, JSON.parse(JSON.stringify(chartConfig)));
+                }
+            }
+            } catch (e) {
+                // 차트 초기화 중 에러 무시 (숨겨진 캔버스 등)
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
