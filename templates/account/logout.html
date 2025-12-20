@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}로그아웃 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+        <div class="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div class="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">로그아웃</h1>
+            <p class="text-gray-500 mb-6">정말 로그아웃 하시겠습니까?</p>
+
+            <form method="post" action="{% url 'account_logout' %}">
+                {% csrf_token %}
+                <div class="flex gap-3">
+                    <a href="{{ request.META.HTTP_REFERER|default:'/' }}"
+                       class="flex-1 py-3 px-4 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors">
+                        취소
+                    </a>
+                    <button type="submit"
+                            class="flex-1 py-3 px-4 bg-orange-600 text-white font-medium rounded-xl hover:bg-orange-700 transition-colors">
+                        로그아웃
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
