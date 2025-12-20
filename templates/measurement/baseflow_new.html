@@ -215,9 +215,19 @@ function baseflowAnalysis() {
         },
 
         initChart() {
-            const ctx = document.getElementById('baseflowChart').getContext('2d');
+            const canvas = document.getElementById('baseflowChart');
+            if (!canvas) {
+                console.error('Chart canvas not found');
+                return;
+            }
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('Cannot get 2d context');
+                return;
+            }
 
-            this.chart = new Chart(ctx, {
+            try {
+                this.chart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: [],
@@ -276,6 +286,10 @@ function baseflowAnalysis() {
                     }
                 }
             });
+            } catch (e) {
+                console.error('Chart init failed:', e);
+                this.chart = null;
+            }
         },
 
         async runAnalysis() {
@@ -317,15 +331,23 @@ function baseflowAnalysis() {
         },
 
         updateChart() {
-            if (!this.chart) return;
+            if (!this.chart) {
+                // 차트가 없으면 다시 초기화 시도
+                this.initChart();
+                if (!this.chart) return;
+            }
 
-            // 라벨 생성
-            const labels = this.dischargeData.map((_, i) => i + 1);
+            try {
+                // 라벨 생성
+                const labels = this.dischargeData.map((_, i) => i + 1);
 
-            this.chart.data.labels = labels;
-            this.chart.data.datasets[0].data = this.dischargeData;
-            this.chart.data.datasets[1].data = this.baseflowData;
-            this.chart.update();
+                this.chart.data.labels = labels;
+                this.chart.data.datasets[0].data = this.dischargeData;
+                this.chart.data.datasets[1].data = this.baseflowData;
+                this.chart.update('none'); // 애니메이션 없이 업데이트
+            } catch (e) {
+                console.error('Chart update failed:', e);
+            }
         },
 
         exportResults() {
