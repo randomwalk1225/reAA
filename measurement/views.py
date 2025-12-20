@@ -928,3 +928,84 @@ def run_baseflow_analysis(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+def save_baseflow_analysis(request):
+    """기저유출 분석 결과 저장"""
+    from .models import Station, BaseflowAnalysis, BaseflowDaily
+    from datetime import datetime
+
+    # 로그인 체크
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+
+        # 필수 데이터
+        station_id = data.get('station_id')
+        station_name = data.get('station_name', '')
+        method = data.get('method', 'lyne_hollick')
+        alpha = float(data.get('alpha', 0.925))
+        bfi_max = float(data.get('bfi_max', 0.80)) if data.get('bfi_max') else None
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+
+        # 분석 결과
+        statistics = data.get('statistics', {})
+        daily_data = data.get('daily_data', [])  # [{date, total, baseflow, direct}, ...]
+
+        # 관측소 조회 또는 생성
+        station = None
+        if station_id:
+            try:
+                station = Station.objects.get(id=station_id)
+            except Station.DoesNotExist:
+                pass
+
+        if not station and station_name:
+            station, _ = Station.objects.get_or_create(
+                name=station_name,
+                defaults={'description': '자동 생성'}
+            )
+
+        if not station:
+            return JsonResponse({'error': '관측소 정보가 필요합니다.'}, status=400)
+
+        # BaseflowAnalysis 생성
+        analysis = BaseflowAnalysis.objects.create(
+            station=station,
+            start_date=datetime.strptime(start_date, '%Y-%m-%d').date(),
+            end_date=datetime.strptime(end_date, '%Y-%m-%d').date(),
+            method=method,
+            alpha=alpha,
+            bfi_max=bfi_max,
+            total_runoff=statistics.get('total_runoff'),
+            baseflow=statistics.get('baseflow'),
+            direct_runoff=statistics.get('direct_runoff'),
+            bfi=statistics.get('bfi'),
+        )
+
+        # 일별 데이터 저장
+        daily_objects = []
+        for d in daily_data:
+            daily_objects.append(BaseflowDaily(
+                analysis=analysis,
+                date=datetime.strptime(d['date'], '%Y-%m-%d').date(),
+                total_discharge=d['total'],
+                baseflow=d['baseflow'],
+                direct_runoff=d['direct'],
+            ))
+
+        if daily_objects:
+            BaseflowDaily.objects.bulk_create(daily_objects)
+
+        return JsonResponse({
+            'success': True,
+            'analysis_id': analysis.id,
+            'message': f'분석 결과가 저장되었습니다. (ID: {analysis.id})'
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

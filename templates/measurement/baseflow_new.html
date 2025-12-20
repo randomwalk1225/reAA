@@ -378,10 +378,61 @@ function baseflowAnalysis() {
             a.click();
         },
 
-        saveAnalysis() {
+        async saveAnalysis() {
             if (!this.results) return;
-            alert('분석 결과가 저장되었습니다. BFI = ' + this.results.bfi.toFixed(3));
-            window.location.href = '{% url "measurement:baseflow_list" %}';
+
+            // 관측소 이름 가져오기
+            const stationSelect = document.querySelector('select[x-model="stationId"]');
+            const stationName = stationSelect.options[stationSelect.selectedIndex]?.text || '';
+
+            // 일별 데이터 생성
+            const dailyData = [];
+            const startDate = new Date(this.startDate);
+
+            for (let i = 0; i < this.dischargeData.length; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                const dateStr = date.toISOString().split('T')[0];
+
+                dailyData.push({
+                    date: dateStr,
+                    total: this.dischargeData[i],
+                    baseflow: this.baseflowData[i],
+                    direct: this.dischargeData[i] - this.baseflowData[i]
+                });
+            }
+
+            try {
+                const response = await fetch('{% url "measurement:save_baseflow_analysis" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        station_id: this.stationId,
+                        station_name: stationName,
+                        method: this.method,
+                        alpha: parseFloat(this.alpha),
+                        bfi_max: this.method === 'eckhardt' ? parseFloat(this.bfiMax) : null,
+                        start_date: this.startDate,
+                        end_date: this.endDate,
+                        statistics: this.results,
+                        daily_data: dailyData
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(result.message);
+                    window.location.href = '{% url "measurement:baseflow_list" %}';
+                } else {
+                    alert('저장 실패: ' + result.error);
+                }
+            } catch (error) {
+                alert('저장 중 오류 발생: ' + error.message);
+            }
         }
     };
 }
