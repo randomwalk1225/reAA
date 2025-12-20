@@ -17,6 +17,7 @@ from .services import (
 from .gee_service import (
     get_vegetation_indices,
     calculate_water_balance_et,
+    is_gee_available,
     KOREA_LOCATIONS,
 )
 
@@ -184,6 +185,7 @@ def et_dashboard(request):
     """증발산량(ET) 분석 대시보드"""
     return render(request, 'hydro/et_dashboard.html', {
         'locations': KOREA_LOCATIONS,
+        'gee_available': is_gee_available(),
     })
 
 

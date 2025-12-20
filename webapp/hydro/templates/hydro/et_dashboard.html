@@ -249,6 +249,27 @@
         </div>
     </div>
 
+    <!-- GEE Not Available Warning -->
+    {% if not gee_available %}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+        <div class="flex items-start">
+            <svg class="w-6 h-6 text-yellow-500 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div>
+                <h3 class="text-lg font-medium text-yellow-800">Google Earth Engine 미설치</h3>
+                <p class="mt-1 text-yellow-700">
+                    서버에 earthengine-api가 설치되지 않아 위성 데이터 분석을 사용할 수 없습니다.
+                </p>
+                <p class="mt-2 text-sm text-yellow-600">
+                    <strong>로컬 개발 환경에서 사용하려면:</strong><br>
+                    <code class="bg-yellow-100 px-2 py-1 rounded">pip install earthengine-api</code>
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Initial State -->
     <div x-show="!result && !error && !isLoading" class="bg-white rounded-xl shadow-sm border p-12 text-center">
         <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -290,30 +311,16 @@ function etDashboard() {
         error: null,
         result: null,
         indices: null,
-        geeStatus: 'checking',
+        geeStatus: '{{ gee_available|yesno:"ready,unavailable" }}',
 
         init() {
-            // Check GEE status
-            this.checkGeeStatus();
+            // GEE status is set from server
         },
 
         selectLocation(name, lat, lon) {
             this.selectedLocation = name;
             this.lat = lat;
             this.lon = lon;
-        },
-
-        async checkGeeStatus() {
-            try {
-                const response = await fetch(`/hydro/api/et/locations/`);
-                if (response.ok) {
-                    this.geeStatus = 'ready';
-                } else {
-                    this.geeStatus = 'error';
-                }
-            } catch (e) {
-                this.geeStatus = 'error';
-            }
         },
 
         async analyze() {

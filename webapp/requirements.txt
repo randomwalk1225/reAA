@@ -68,7 +68,5 @@ xlrd==2.0.2
     # via discharge-measurement
 requests==2.32.3
     # via discharge-measurement (HRFCO API)
-earthengine-api==1.4.3
-    # via discharge-measurement (Google Earth Engine)
-geemap==0.35.1
-    # via discharge-measurement (GEE mapping utilities)
+# earthengine-api - 로컬 개발용 (pip install earthengine-api)
+# geemap - 로컬 개발용 (pip install geemap)

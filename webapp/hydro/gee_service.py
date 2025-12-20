@@ -10,10 +10,20 @@ Landsat 위성 데이터를 활용한 증발산량(ET) 계산
 1. https://earthengine.google.com 에서 계정 등록
 2. 서비스 계정 생성 후 JSON 키 파일 발급
 3. 환경변수 GEE_SERVICE_ACCOUNT_KEY 설정
+
+로컬 개발 시: pip install earthengine-api
 """
 import os
 import json
 from datetime import datetime, timedelta
+
+# GEE 사용 가능 여부
+_gee_available = False
+try:
+    import ee
+    _gee_available = True
+except ImportError:
+    ee = None
 
 # GEE 초기화 상태
 _gee_initialized = False
@@ -23,12 +33,13 @@ def init_gee():
     """Google Earth Engine 초기화"""
     global _gee_initialized
 
+    if not _gee_available:
+        return False
+
     if _gee_initialized:
         return True
 
     try:
-        import ee
-
         # 서비스 계정 키 파일 경로
         key_path = os.environ.get('GEE_SERVICE_ACCOUNT_KEY')
 
@@ -50,6 +61,11 @@ def init_gee():
     except Exception as e:
         print(f"GEE 초기화 실패: {e}")
         return False
+
+
+def is_gee_available():
+    """GEE 사용 가능 여부 확인"""
+    return _gee_available
 
 
 def get_landsat_collection(region, start_date, end_date, cloud_cover=20):
@@ -178,6 +194,12 @@ def get_vegetation_indices(lat, lon, date=None, buffer_km=5):
     Returns:
         dict: NDVI, NDMI, NDWI 값
     """
+    if not _gee_available:
+        return {
+            'error': 'Google Earth Engine이 설치되지 않았습니다. 로컬에서 pip install earthengine-api 실행 필요.',
+            'status': 'unavailable'
+        }
+
     if not init_gee():
         return {'error': 'GEE 초기화 실패', 'status': 'unavailable'}
 
