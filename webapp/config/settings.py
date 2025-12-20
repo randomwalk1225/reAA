@@ -30,8 +30,9 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'reaa.onrender.com',
     '.onrender.com',
+    '.railway.app',
+    '.up.railway.app',
 ]
 
 # 환경변수로 추가 호스트 설정 가능
@@ -39,9 +40,11 @@ extra_hosts = os.environ.get('ALLOWED_HOSTS', '')
 if extra_hosts:
     ALLOWED_HOSTS.extend(extra_hosts.split(','))
 
-# CSRF trusted origins for Render
+# CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
+    'https://*.railway.app',
+    'https://*.up.railway.app',
 ]
 
 
@@ -54,14 +57,23 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     # Third party
     'django_htmx',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.github',
     # Local apps
     'core',
     'measurement',
     'satellite',
     'hydro',
 ]
+
+# Site framework
+SITE_ID = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -73,6 +85,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
+]
+
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -161,3 +180,41 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ======================
+# Django Allauth Settings
+# ======================
+
+# 로그인/로그아웃 리다이렉트
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/'
+
+# 이메일 설정
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_USERNAME_REQUIRED = False
+
+# 소셜 로그인 설정
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
+# OAuth Provider 설정 (환경변수에서 읽기)
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+        'APP': {
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
+            'secret': os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+        }
+    },
+    'github': {
+        'SCOPE': ['user:email'],
+        'APP': {
+            'client_id': os.environ.get('GITHUB_CLIENT_ID', ''),
+            'secret': os.environ.get('GITHUB_CLIENT_SECRET', ''),
+        }
+    },
+}

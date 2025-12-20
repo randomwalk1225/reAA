@@ -120,13 +120,29 @@
 
                 <!-- Right side -->
                 <div class="hidden md:flex md:items-center md:space-x-3">
-                    <a href="{% url 'measurement:new' %}"
-                       class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        새 측정
-                    </a>
+                    {% if user.is_authenticated %}
+                        <span class="text-sm text-gray-600">{{ user.email }}</span>
+                        <a href="{% url 'measurement:new' %}"
+                           class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            새 측정
+                        </a>
+                        <a href="{% url 'account_logout' %}"
+                           class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">
+                            로그아웃
+                        </a>
+                    {% else %}
+                        <a href="{% url 'account_login' %}"
+                           class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900">
+                            로그인
+                        </a>
+                        <a href="{% url 'account_signup' %}"
+                           class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                            회원가입
+                        </a>
+                    {% endif %}
                 </div>
 
                 <!-- Mobile menu button -->
@@ -154,7 +170,14 @@
                 <a href="{% url 'hydro:dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">실시간 수문자료</a>
                 <a href="{% url 'hydro:et_dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">증발산량 (ET)</a>
                 <hr class="my-2">
-                <a href="{% url 'measurement:new' %}" class="block px-4 py-2 rounded-lg bg-primary-600 text-white text-center">+ 새 측정</a>
+                {% if user.is_authenticated %}
+                    <div class="px-4 py-2 text-sm text-gray-500">{{ user.email }}</div>
+                    <a href="{% url 'measurement:new' %}" class="block px-4 py-2 rounded-lg bg-primary-600 text-white text-center">+ 새 측정</a>
+                    <a href="{% url 'account_logout' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 text-center">로그아웃</a>
+                {% else %}
+                    <a href="{% url 'account_login' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 text-center">로그인</a>
+                    <a href="{% url 'account_signup' %}" class="block px-4 py-2 rounded-lg bg-primary-600 text-white text-center">회원가입</a>
+                {% endif %}
             </div>
         </div>
     </nav>

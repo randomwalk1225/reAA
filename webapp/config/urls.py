@@ -24,4 +24,6 @@ urlpatterns = [
     path('measurement/', include('measurement.urls')),
     path('satellite/', include('satellite.urls')),
     path('hydro/', include('hydro.urls')),
+    # Authentication
+    path('accounts/', include('allauth.urls')),
 ]

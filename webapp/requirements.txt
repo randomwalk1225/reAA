@@ -20,6 +20,9 @@ pillow>=10.0
 # HTTP requests
 requests>=2.31
 
+# Authentication (Google, GitHub OAuth)
+django-allauth>=65.0
+
 # GEE - 로컬 개발용 (pip install earthengine-api)
 # earthengine-api
 # geemap
