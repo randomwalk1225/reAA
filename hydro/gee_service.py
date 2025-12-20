@@ -81,7 +81,12 @@ def init_gee():
         return True
 
     except Exception as e:
+        import traceback
         print(f"GEE 초기화 실패: {e}")
+        print(f"GEE_PROJECT_ID: {project_id}")
+        print(f"GEE_SERVICE_ACCOUNT_KEY 설정됨: {bool(key_data)}")
+        print(f"GEE_SERVICE_ACCOUNT_KEY 길이: {len(key_data) if key_data else 0}")
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 
