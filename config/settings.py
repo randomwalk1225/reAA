@@ -33,6 +33,8 @@ ALLOWED_HOSTS = [
     '.onrender.com',
     '.railway.app',
     '.up.railway.app',
+    'hydrolink.app',
+    'www.hydrolink.app',
 ]
 
 # 환경변수로 추가 호스트 설정 가능
@@ -45,6 +47,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
     'https://*.railway.app',
     'https://*.up.railway.app',
+    'https://hydrolink.app',
+    'https://www.hydrolink.app',
 ]
 
 
