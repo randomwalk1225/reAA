@@ -14,6 +14,11 @@ from .services import (
     DEFAULT_STATIONS,
     STATION_DATABASE,
 )
+from .gee_service import (
+    get_vegetation_indices,
+    calculate_water_balance_et,
+    KOREA_LOCATIONS,
+)
 
 
 def dashboard(request):
@@ -168,4 +173,63 @@ def api_search_stations(request):
         'query': query,
         'results': results,
         'count': len(results),
+    })
+
+
+# ============================================
+# Google Earth Engine - 증발산량 분석
+# ============================================
+
+def et_dashboard(request):
+    """증발산량(ET) 분석 대시보드"""
+    return render(request, 'hydro/et_dashboard.html', {
+        'locations': KOREA_LOCATIONS,
+    })
+
+
+@require_GET
+def api_vegetation_indices(request):
+    """API: 위성기반 식생지수 조회 (NDVI, NDMI, NDWI)"""
+    try:
+        lat = float(request.GET.get('lat', 37.5665))
+        lon = float(request.GET.get('lon', 126.9780))
+        date = request.GET.get('date')  # YYYY-MM-DD 또는 None
+
+        result = get_vegetation_indices(lat, lon, date)
+
+        return JsonResponse(result)
+
+    except ValueError as e:
+        return JsonResponse({'error': f'잘못된 좌표값: {e}', 'status': 'error'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e), 'status': 'error'}, status=500)
+
+
+@require_GET
+def api_calculate_et(request):
+    """API: 증발산량(ET) 계산"""
+    try:
+        lat = float(request.GET.get('lat', 37.5665))
+        lon = float(request.GET.get('lon', 126.9780))
+        et0 = float(request.GET.get('et0', 5.0))  # 기준증발산량 (mm/day)
+        date = request.GET.get('date')
+
+        result = calculate_water_balance_et(lat, lon, et0, date)
+
+        return JsonResponse(result)
+
+    except ValueError as e:
+        return JsonResponse({'error': f'잘못된 파라미터: {e}', 'status': 'error'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e), 'status': 'error'}, status=500)
+
+
+@require_GET
+def api_preset_locations(request):
+    """API: 사전정의된 한국 주요 지점 목록"""
+    return JsonResponse({
+        'locations': [
+            {'name': name, 'lat': coords['lat'], 'lon': coords['lon']}
+            for name, coords in KOREA_LOCATIONS.items()
+        ]
     })

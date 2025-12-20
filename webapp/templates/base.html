@@ -89,10 +89,32 @@
                            class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.app_name == 'satellite' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
                             위성영상
                         </a>
-                        <a href="{% url 'hydro:dashboard' %}"
-                           class="px-4 py-2 rounded-lg text-sm font-medium {% if request.resolver_match.app_name == 'hydro' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
-                            수문자료
-                        </a>
+                        <!-- Hydro Dropdown -->
+                        <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                            <button class="px-4 py-2 rounded-lg text-sm font-medium flex items-center {% if request.resolver_match.app_name == 'hydro' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                                수문분석
+                                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            <div x-show="open" x-cloak
+                                 x-transition:enter="transition ease-out duration-100"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 class="absolute left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+                                <a href="{% url 'hydro:dashboard' %}"
+                                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    실시간 수문자료
+                                </a>
+                                <a href="{% url 'hydro:et_dashboard' %}"
+                                   class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    증발산량 (ET)
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -129,7 +151,8 @@
                 <a href="{% url 'measurement:timeseries_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">시계열</a>
                 <a href="{% url 'measurement:baseflow_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">기저유출</a>
                 <a href="{% url 'satellite:viewer' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">위성영상</a>
-                <a href="{% url 'hydro:dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">수문자료</a>
+                <a href="{% url 'hydro:dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">실시간 수문자료</a>
+                <a href="{% url 'hydro:et_dashboard' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">증발산량 (ET)</a>
                 <hr class="my-2">
                 <a href="{% url 'measurement:new' %}" class="block px-4 py-2 rounded-lg bg-primary-600 text-white text-center">+ 새 측정</a>
             </div>

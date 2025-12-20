@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}증발산량(ET) 분석 - 유량측정 시스템{% endblock %}
+
+{% block extra_head %}
+<style>
+    .data-card {
+        transition: all 0.2s ease;
+    }
+    .data-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .value-large {
+        font-size: 2.5rem;
+        font-weight: 700;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+    .value-unit {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+    .index-card {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    .index-value {
+        font-size: 2rem;
+        font-weight: 700;
+        font-family: 'SF Mono', 'Monaco', monospace;
+    }
+    .index-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-top: 0.5rem;
+    }
+    .index-bar {
+        height: 8px;
+        border-radius: 4px;
+        margin-top: 0.75rem;
+        background: linear-gradient(to right, #ef4444, #fbbf24, #22c55e);
+    }
+    .index-marker {
+        width: 4px;
+        height: 16px;
+        background: #1f2937;
+        border-radius: 2px;
+        position: relative;
+        top: -12px;
+    }
+    .location-btn {
+        transition: all 0.15s ease;
+    }
+    .location-btn:hover {
+        transform: scale(1.02);
+    }
+    .location-btn.selected {
+        ring: 2px;
+        ring-color: #3b82f6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="etDashboard()">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">증발산량(ET) 분석</h1>
+            <p class="mt-1 text-gray-600">Landsat 위성 기반 NDVI-ET 추정 (Google Earth Engine)</p>
+        </div>
+        <div class="mt-4 sm:mt-0">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm"
+                  :class="geeStatus === 'ready' ? 'bg-green-100 text-green-700' : geeStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'">
+                <span class="w-2 h-2 rounded-full mr-2"
+                      :class="geeStatus === 'ready' ? 'bg-green-500' : geeStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500'"></span>
+                <span x-text="geeStatus === 'ready' ? 'GEE 연결됨' : geeStatus === 'error' ? 'GEE 연결 실패' : 'GEE 확인 중...'"></span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Location Selection -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">분석 지점 선택</h2>
+
+        <!-- Preset Locations -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">주요 지점</label>
+            <div class="flex flex-wrap gap-2">
+                {% for name, coords in locations.items %}
+                <button @click="selectLocation('{{ name }}', {{ coords.lat }}, {{ coords.lon }})"
+                        class="location-btn px-4 py-2 rounded-lg border text-sm font-medium"
+                        :class="selectedLocation === '{{ name }}' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'">
+                    {{ name }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Custom Coordinates -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">위도 (Latitude)</label>
+                <input type="number" step="0.0001" x-model.number="lat"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                       placeholder="37.5665">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">경도 (Longitude)</label>
+                <input type="number" step="0.0001" x-model.number="lon"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                       placeholder="126.9780">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">기준증발산량 ET0 (mm/day)</label>
+                <input type="number" step="0.1" x-model.number="et0"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                       placeholder="5.0">
+            </div>
+            <div class="flex items-end">
+                <button @click="analyze()"
+                        :disabled="isLoading"
+                        class="w-full px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg x-show="isLoading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-text="isLoading ? '분석 중...' : '분석 실행'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    <div x-show="error" x-cloak class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-red-700" x-text="error"></span>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div x-show="result" x-cloak>
+        <!-- ET Result Card -->
+        <div class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg p-6 mb-6 text-white">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h3 class="text-lg font-medium opacity-90">추정 증발산량 (ET)</h3>
+                    <div class="mt-2">
+                        <span class="value-large" x-text="result?.et?.toFixed(2) || '-'"></span>
+                        <span class="text-xl ml-1 opacity-75">mm/day</span>
+                    </div>
+                </div>
+                <div class="mt-4 md:mt-0 grid grid-cols-2 gap-6 text-center">
+                    <div>
+                        <div class="text-2xl font-bold" x-text="result?.kc?.toFixed(3) || '-'"></div>
+                        <div class="text-sm opacity-75">작물계수 (Kc)</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold" x-text="result?.et0?.toFixed(1) || '-'"></div>
+                        <div class="text-sm opacity-75">ET0 (mm/day)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-4 text-sm">
+                <span><strong>위치:</strong> <span x-text="selectedLocation || `${lat}, ${lon}`"></span></span>
+                <span><strong>영상일자:</strong> <span x-text="result?.date || '-'"></span></span>
+                <span><strong>방법:</strong> <span x-text="result?.method || '-'"></span></span>
+            </div>
+        </div>
+
+        <!-- Vegetation Indices -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- NDVI -->
+            <div class="data-card bg-white rounded-xl shadow-sm border index-card">
+                <div class="text-sm font-medium text-gray-500 mb-2">NDVI</div>
+                <div class="index-value" :class="getNdviColor(result?.ndvi)" x-text="result?.ndvi?.toFixed(4) || '-'"></div>
+                <div class="index-label">Normalized Difference Vegetation Index</div>
+                <div class="index-bar mt-3">
+                    <div class="index-marker" :style="`margin-left: ${getNdviPosition(result?.ndvi)}%`"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>-1 (황무지)</span>
+                    <span>0</span>
+                    <span>+1 (밀림)</span>
+                </div>
+            </div>
+
+            <!-- NDMI -->
+            <div class="data-card bg-white rounded-xl shadow-sm border index-card">
+                <div class="text-sm font-medium text-gray-500 mb-2">NDMI</div>
+                <div class="index-value text-blue-600" x-text="indices?.ndmi?.toFixed(4) || '-'"></div>
+                <div class="index-label">Normalized Difference Moisture Index</div>
+                <div class="index-bar mt-3" style="background: linear-gradient(to right, #fbbf24, #3b82f6, #1d4ed8);"></div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>-1 (건조)</span>
+                    <span>0</span>
+                    <span>+1 (습윤)</span>
+                </div>
+            </div>
+
+            <!-- NDWI -->
+            <div class="data-card bg-white rounded-xl shadow-sm border index-card">
+                <div class="text-sm font-medium text-gray-500 mb-2">NDWI</div>
+                <div class="index-value text-cyan-600" x-text="indices?.ndwi?.toFixed(4) || '-'"></div>
+                <div class="index-label">Normalized Difference Water Index</div>
+                <div class="index-bar mt-3" style="background: linear-gradient(to right, #84cc16, #06b6d4, #0891b2);"></div>
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>-1 (육지)</span>
+                    <span>0</span>
+                    <span>+1 (수역)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Water Balance Formula -->
+        <div class="bg-gray-50 rounded-xl p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">물수지 분석 (Water Balance)</h3>
+            <div class="bg-white rounded-lg p-4 font-mono text-center text-lg mb-4">
+                <span class="text-blue-600 font-bold">P</span> =
+                <span class="text-green-600 font-bold">ET</span> +
+                <span class="text-orange-600 font-bold">R</span> +
+                <span class="text-purple-600 font-bold">ΔS</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div class="text-center">
+                    <div class="text-blue-600 font-bold text-xl">P</div>
+                    <div class="text-gray-600">강수량 (Precipitation)</div>
+                    <div class="text-gray-400 text-xs mt-1">HRFCO API</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-green-600 font-bold text-xl">ET</div>
+                    <div class="text-gray-600">증발산량</div>
+                    <div class="text-gray-400 text-xs mt-1">Landsat + GEE</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-orange-600 font-bold text-xl">R</div>
+                    <div class="text-gray-600">유출량 (Runoff)</div>
+                    <div class="text-gray-400 text-xs mt-1">측정 데이터</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-purple-600 font-bold text-xl">ΔS</div>
+                    <div class="text-gray-600">저류량 변화</div>
+                    <div class="text-gray-400 text-xs mt-1">K-water API</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initial State -->
+    <div x-show="!result && !error && !isLoading" class="bg-white rounded-xl shadow-sm border p-12 text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">지점을 선택하고 분석을 실행하세요</h3>
+        <p class="text-gray-500">Landsat 8/9 위성영상을 분석하여 NDVI 기반 증발산량을 추정합니다.</p>
+    </div>
+
+    <!-- Info -->
+    <div class="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 mt-6">
+        <div class="flex items-start">
+            <svg class="w-4 h-4 mr-2 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p><strong>데이터 소스:</strong> Landsat 8/9 Surface Reflectance (30m 해상도)</p>
+                <p class="mt-1"><strong>ET 추정 방법:</strong> NDVI 기반 작물계수(Kc) 추정 → ET = Kc × ET0</p>
+                <p class="mt-1"><strong>참고:</strong> 구름 피복률 30% 이하의 최근 30일 영상 사용</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function etDashboard() {
+    return {
+        // Location
+        lat: 37.5665,
+        lon: 126.9780,
+        et0: 5.0,
+        selectedLocation: '서울',
+
+        // State
+        isLoading: false,
+        error: null,
+        result: null,
+        indices: null,
+        geeStatus: 'checking',
+
+        init() {
+            // Check GEE status
+            this.checkGeeStatus();
+        },
+
+        selectLocation(name, lat, lon) {
+            this.selectedLocation = name;
+            this.lat = lat;
+            this.lon = lon;
+        },
+
+        async checkGeeStatus() {
+            try {
+                const response = await fetch(`/hydro/api/et/locations/`);
+                if (response.ok) {
+                    this.geeStatus = 'ready';
+                } else {
+                    this.geeStatus = 'error';
+                }
+            } catch (e) {
+                this.geeStatus = 'error';
+            }
+        },
+
+        async analyze() {
+            this.isLoading = true;
+            this.error = null;
+            this.result = null;
+            this.indices = null;
+
+            try {
+                const response = await fetch(
+                    `/hydro/api/et/calculate/?lat=${this.lat}&lon=${this.lon}&et0=${this.et0}`
+                );
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    this.result = data;
+                    // Fetch indices separately for display
+                    await this.fetchIndices();
+                } else {
+                    this.error = data.error || '분석 중 오류가 발생했습니다.';
+                }
+            } catch (e) {
+                this.error = '서버 연결 오류: ' + e.message;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async fetchIndices() {
+            try {
+                const response = await fetch(
+                    `/hydro/api/et/indices/?lat=${this.lat}&lon=${this.lon}`
+                );
+                const data = await response.json();
+                if (data.status === 'success') {
+                    this.indices = data.indices;
+                }
+            } catch (e) {
+                console.error('Failed to fetch indices:', e);
+            }
+        },
+
+        getNdviColor(ndvi) {
+            if (ndvi === null || ndvi === undefined) return 'text-gray-400';
+            if (ndvi < 0) return 'text-red-500';
+            if (ndvi < 0.2) return 'text-yellow-500';
+            if (ndvi < 0.5) return 'text-lime-500';
+            return 'text-green-600';
+        },
+
+        getNdviPosition(ndvi) {
+            if (ndvi === null || ndvi === undefined) return 50;
+            // Map -1 to 1 range to 0-100%
+            return Math.min(100, Math.max(0, (ndvi + 1) / 2 * 100));
+        }
+    };
+}
+</script>
+{% endblock %}
