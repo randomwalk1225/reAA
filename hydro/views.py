@@ -235,3 +235,28 @@ def api_preset_locations(request):
             for name, coords in KOREA_LOCATIONS.items()
         ]
     })
+
+
+@require_GET
+def api_debug_env(request):
+    """디버그: GEE 환경변수 확인 (값은 숨김)"""
+    import os
+
+    gee_vars = {}
+    for key in os.environ:
+        if key.startswith('GEE_') or key.startswith('GOOGLE_'):
+            val = os.environ.get(key, '')
+            # 값이 있으면 길이와 처음 몇 글자만 표시
+            if val:
+                gee_vars[key] = f"SET (len={len(val)}, start={val[:20]}...)"
+            else:
+                gee_vars[key] = "EMPTY"
+
+    # 모든 환경변수 이름만 (디버그용)
+    all_env_keys = sorted([k for k in os.environ.keys()])
+
+    return JsonResponse({
+        'gee_variables': gee_vars,
+        'all_env_count': len(all_env_keys),
+        'all_env_keys': all_env_keys,  # 키만 노출
+    })

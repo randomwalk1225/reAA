@@ -20,4 +20,7 @@ urlpatterns = [
     path('api/et/indices/', views.api_vegetation_indices, name='api_vegetation_indices'),
     path('api/et/calculate/', views.api_calculate_et, name='api_calculate_et'),
     path('api/et/locations/', views.api_preset_locations, name='api_preset_locations'),
+
+    # 디버그 (임시)
+    path('api/debug/env/', views.api_debug_env, name='api_debug_env'),
 ]
