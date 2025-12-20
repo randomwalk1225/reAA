@@ -62,7 +62,8 @@ def init_gee():
                 'type': 'service_account',
                 'project_id': project_id,
                 'client_email': client_email,
-                'private_key': private_key
+                'private_key': private_key,
+                'token_uri': 'https://oauth2.googleapis.com/token',
             }
 
             # 임시 파일에 JSON 저장 후 key_file로 전달
