@@ -40,20 +40,42 @@ def init_gee():
         return True
 
     try:
-        # 서비스 계정 키 파일 경로
-        key_path = os.environ.get('GEE_SERVICE_ACCOUNT_KEY')
+        import tempfile
 
-        if key_path and os.path.exists(key_path):
-            # 서비스 계정으로 인증
-            credentials = ee.ServiceAccountCredentials(
-                email=None,  # JSON에서 자동 추출
-                key_file=key_path
-            )
-            ee.Initialize(credentials)
+        # 서비스 계정 키 (JSON 문자열 또는 파일 경로)
+        key_data = os.environ.get('GEE_SERVICE_ACCOUNT_KEY', '')
+        project_id = os.environ.get('GEE_PROJECT_ID', 'ee-discharge-measurement')
+
+        if key_data:
+            # JSON 문자열인 경우 (Railway 환경변수)
+            if key_data.strip().startswith('{'):
+                key_dict = json.loads(key_data)
+                # 임시 파일에 저장
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                    json.dump(key_dict, f)
+                    key_path = f.name
+
+                credentials = ee.ServiceAccountCredentials(
+                    email=key_dict.get('client_email'),
+                    key_file=key_path
+                )
+                ee.Initialize(credentials, project=project_id)
+
+            # 파일 경로인 경우
+            elif os.path.exists(key_data):
+                with open(key_data) as f:
+                    key_dict = json.load(f)
+
+                credentials = ee.ServiceAccountCredentials(
+                    email=key_dict.get('client_email'),
+                    key_file=key_data
+                )
+                ee.Initialize(credentials, project=project_id)
+            else:
+                raise ValueError("GEE_SERVICE_ACCOUNT_KEY가 유효하지 않습니다")
         else:
-            # 기본 인증 (개발용)
-            ee.Authenticate()
-            ee.Initialize(project='ee-discharge-measurement')
+            # 기본 인증 (로컬 개발용 - gcloud auth 필요)
+            ee.Initialize(project=project_id)
 
         _gee_initialized = True
         return True
