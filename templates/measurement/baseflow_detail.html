@@ -358,7 +358,7 @@ function baseflowDetail() {
         },
 
         exportPDF() {
-            alert('PDF 리포트 생성 기능 (구현 예정)');
+            window.location.href = '{% url "measurement:export_baseflow_pdf" analysis.pk %}';
         },
 
         exportCSV() {

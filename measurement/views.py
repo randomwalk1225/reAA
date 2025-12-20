@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from io import BytesIO
 from datetime import datetime, timedelta
@@ -796,28 +796,24 @@ def generate_discharge_series(request):
 
 def baseflow_list(request):
     """기저유출 분석 목록"""
-    analyses = [
-        {
-            'id': 1,
-            'station_name': '경주 대종천 하류보',
-            'period': '2024-05-01 ~ 2025-04-30',
-            'method': 'Lyne-Hollick 필터',
-            'bfi': 0.42,
-            'total_runoff': 856.3,
-            'baseflow': 359.6,
-            'created_at': '2025-05-01',
-        },
-        {
-            'id': 2,
-            'station_name': '신태인 수위관측소',
-            'period': '2024-01-01 ~ 2024-12-31',
-            'method': 'Eckhardt 필터',
-            'bfi': 0.38,
-            'total_runoff': 1245.8,
-            'baseflow': 473.4,
-            'created_at': '2025-01-15',
-        },
-    ]
+    from .models import BaseflowAnalysis
+
+    # DB에서 분석 목록 조회
+    db_analyses = BaseflowAnalysis.objects.select_related('station').order_by('-created_at')
+
+    analyses = []
+    for a in db_analyses:
+        analyses.append({
+            'id': a.pk,
+            'station_name': a.station.name if a.station else 'Unknown',
+            'period': f'{a.start_date} ~ {a.end_date}',
+            'method': a.get_method_display(),
+            'bfi': a.bfi,
+            'total_runoff': a.total_runoff,
+            'baseflow': a.baseflow,
+            'created_at': a.created_at.strftime('%Y-%m-%d') if a.created_at else '',
+        })
+
     return render(request, 'measurement/baseflow_list.html', {
         'analyses': analyses,
     })
@@ -830,44 +826,51 @@ def baseflow_new(request):
 
 def baseflow_detail(request, pk):
     """기저유출 분석 상세"""
-    import random
+    from .models import BaseflowAnalysis
 
-    # 샘플 일별 데이터 생성 (1년)
-    daily_data = []
-    base_date = datetime(2024, 5, 1)
-    for i in range(365):
-        dt = base_date + timedelta(days=i)
-        # 계절 변동 + 강우 이벤트 시뮬레이션
-        seasonal = 0.5 + 0.3 * abs((i % 365) - 182) / 182
-        event = random.uniform(0, 2) if random.random() < 0.1 else 0
-        total_q = seasonal + event + random.uniform(-0.1, 0.1)
-        baseflow_q = seasonal * 0.4 + random.uniform(-0.02, 0.02)
+    try:
+        # DB에서 분석 결과 조회
+        analysis_obj = BaseflowAnalysis.objects.select_related('station').get(pk=pk)
+        daily_results = analysis_obj.daily_results.all().order_by('date')
 
-        daily_data.append({
-            'date': dt.strftime('%Y-%m-%d'),
-            'total': round(max(0.1, total_q), 3),
-            'baseflow': round(max(0.05, baseflow_q), 3),
-            'direct': round(max(0, total_q - baseflow_q), 3),
+        # 일별 데이터 변환
+        daily_data = []
+        for d in daily_results:
+            direct = d.total_discharge - d.baseflow if d.total_discharge and d.baseflow else 0
+            daily_data.append({
+                'date': d.date.strftime('%Y-%m-%d'),
+                'total': round(d.total_discharge, 3) if d.total_discharge else 0,
+                'baseflow': round(d.baseflow, 3) if d.baseflow else 0,
+                'direct': round(max(0, direct), 3),
+            })
+
+        # 분석 결과 객체 (템플릿에서 .pk 접근 가능)
+        class AnalysisWrapper:
+            def __init__(self, obj):
+                self.pk = obj.pk
+                self.id = obj.pk
+                self.station_name = obj.station.name if obj.station else 'Unknown'
+                self.start_date = obj.start_date
+                self.end_date = obj.end_date
+                self.method = obj.method
+                self.method_display = obj.get_method_display()
+                self.alpha = obj.alpha
+                self.bfi_max = obj.bfi_max
+                self.total_runoff = obj.total_runoff
+                self.baseflow = obj.baseflow
+                self.direct_runoff = obj.direct_runoff
+                self.bfi = obj.bfi
+
+        analysis = AnalysisWrapper(analysis_obj)
+
+        return render(request, 'measurement/baseflow_detail.html', {
+            'analysis': analysis,
+            'daily_data': daily_data,
         })
 
-    analysis = {
-        'id': pk,
-        'station_name': '경주 대종천 하류보',
-        'start_date': '2024-05-01',
-        'end_date': '2025-04-30',
-        'method': 'lyne_hollick',
-        'method_display': 'Lyne-Hollick 필터',
-        'alpha': 0.925,
-        'total_runoff': 856.3,
-        'baseflow': 359.6,
-        'direct_runoff': 496.7,
-        'bfi': 0.42,
-    }
-
-    return render(request, 'measurement/baseflow_detail.html', {
-        'analysis': analysis,
-        'daily_data': daily_data,
-    })
+    except BaseflowAnalysis.DoesNotExist:
+        from django.http import Http404
+        raise Http404("분석 결과를 찾을 수 없습니다.")
 
 
 @require_http_methods(["POST"])
@@ -1009,3 +1012,36 @@ def save_baseflow_analysis(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_GET
+def export_baseflow_pdf(request, pk):
+    """기저유출 분석 PDF 리포트 다운로드"""
+    from django.http import HttpResponse
+    from .models import BaseflowAnalysis
+    from .pdf_service import generate_baseflow_report
+    import urllib.parse
+
+    try:
+        analysis = BaseflowAnalysis.objects.select_related('station').get(pk=pk)
+        daily_data = list(analysis.daily_results.all().order_by('date'))
+
+        # PDF 생성
+        pdf_buffer = generate_baseflow_report(analysis, daily_data)
+
+        # 안전한 파일명 생성
+        station_name = analysis.station.name if analysis.station else 'unknown'
+        safe_filename = urllib.parse.quote(f"baseflow_{station_name}_{analysis.start_date}.pdf")
+
+        # 응답 생성
+        response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f"attachment; filename*=UTF-8''{safe_filename}"
+
+        return response
+
+    except BaseflowAnalysis.DoesNotExist:
+        return HttpResponse('Analysis not found', status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error generating PDF: {str(e)}', status=500)

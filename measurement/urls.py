@@ -41,6 +41,7 @@ urlpatterns = [
     path('baseflow/', views.baseflow_list, name='baseflow_list'),
     path('baseflow/new/', views.baseflow_new, name='baseflow_new'),
     path('baseflow/<int:pk>/', views.baseflow_detail, name='baseflow_detail'),
+    path('baseflow/<int:pk>/pdf/', views.export_baseflow_pdf, name='export_baseflow_pdf'),
     path('baseflow/run/', views.run_baseflow_analysis, name='run_baseflow_analysis'),
     path('baseflow/save/', views.save_baseflow_analysis, name='save_baseflow_analysis'),
 ]
