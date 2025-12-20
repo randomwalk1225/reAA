@@ -1,0 +1,6 @@
+# Force binary-only installation (no compilation needed)
+[phases.install]
+cmds = ["pip install --only-binary :all: -r requirements.txt"]
+
+[start]
+cmd = "python manage.py migrate && gunicorn config.wsgi:application"
