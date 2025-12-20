@@ -1,9 +1,0 @@
-# Force Nixpacks to use uv for Python dependency installation
-[phases.setup]
-nixPkgs = ["python312", "uv"]
-
-[phases.install]
-cmds = ["uv pip install --target /app/vendor -r pyproject.toml"]
-
-[start]
-cmd = "PYTHONPATH=/app/vendor python manage.py migrate && PYTHONPATH=/app/vendor gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"

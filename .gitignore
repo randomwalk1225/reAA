@@ -60,3 +60,4 @@ webapp/
 
 # Keep uv.lock for deployment
 !uv.lock
+resource/googlekey/
