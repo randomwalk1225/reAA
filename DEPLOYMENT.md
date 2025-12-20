@@ -271,6 +271,31 @@ git add -A && git commit -m "message" && git push origin master
 
 ---
 
+### 2025-12-20: uv pip install -r pyproject.toml 문법 오류
+
+**증상:**
+- 배포 성공하나 earthengine-api 등 패키지 미설치
+- GEE "미설치" 메시지 표시
+
+**원인:**
+- `uv pip install -r pyproject.toml`은 잘못된 문법
+- `-r` 옵션은 requirements.txt 형식 전용
+- pyproject.toml 형식을 읽지 못함
+
+**해결:**
+```dockerfile
+# uv sync 사용 + PATH 설정
+RUN uv sync --frozen --no-dev
+ENV PATH="/app/.venv/bin:$PATH"
+```
+
+**핵심 교훈:**
+1. `uv pip install -r`은 requirements.txt 전용
+2. pyproject.toml 사용 시 `uv sync` 또는 `uv pip install .` 사용
+3. venv 사용 시 PATH 환경변수 설정 필수
+
+---
+
 ### 2025-12-20: .dockerignore에서 config/ 제외로 Django 설정 누락
 
 **증상:**
