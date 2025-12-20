@@ -1,53 +1,21 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
-*.egg
+# Ignore everything
+*
 
-# Virtual environments
-venv/
-.venv/
-env/
+# Except webapp folder
+!webapp/
+!webapp/**
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-media/
-staticfiles/
+# But ignore these in webapp
+webapp/__pycache__/
+webapp/**/__pycache__/
+webapp/*.pyc
+webapp/**/*.pyc
+webapp/.venv/
+webapp/db.sqlite3
+webapp/staticfiles/
+webapp/media/
+webapp/*.log
+webapp/.env
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-nul
-
-# Secrets
-.env
-*.env
-
-# Test files
-test_screenshots/
-*.png
-server.log
-
-# Temp files
-*.tmp
-*.bak
-*.xlk
-
-# Large/binary files
-*.zip
-*.bin
-PROJECT.bin
-PROJECT_patched.bin
+# Keep .gitignore itself
+!.gitignore
