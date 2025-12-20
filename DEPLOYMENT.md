@@ -25,11 +25,13 @@
 nixPkgs = ["python312", "uv"]
 
 [phases.install]
-cmds = ["uv pip install --system -r pyproject.toml"]
+cmds = ["uv venv /app/.venv && uv pip install -r pyproject.toml"]
 
 [start]
-cmd = "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "/app/.venv/bin/python manage.py migrate && /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
 ```
+
+**중요:** Nixpacks는 `/nix/store/`가 읽기 전용이므로 반드시 `/app/` 경로에 venv 생성
 
 ---
 
@@ -109,6 +111,38 @@ collision between gcc and gfortran
 
 ---
 
+### 2024-12-20: externally managed environment 에러
+
+**증상:**
+```
+error: The interpreter at /nix/store/...python3-3.12.7 is externally managed
+This command has been disabled as it tries to modify the immutable `/nix/store` filesystem.
+"uv pip install --system -r pyproject.toml" did not complete successfully: exit code: 2
+```
+
+**원인:**
+- Nixpacks의 Python은 `/nix/store/`에 설치됨 (읽기 전용)
+- `--system` 옵션은 시스템 Python에 직접 설치 시도
+- Nix 파일시스템은 immutable이라 쓰기 불가
+
+**해결:**
+- 쓰기 가능한 `/app/` 경로에 가상환경 생성
+- 명시적 경로로 실행
+
+```toml
+[phases.install]
+cmds = ["uv venv /app/.venv && uv pip install -r pyproject.toml"]
+
+[start]
+cmd = "/app/.venv/bin/python manage.py migrate && /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+```
+
+**핵심 교훈:**
+- Nixpacks 환경에서 `--system` 설치 불가
+- 반드시 쓰기 가능한 경로(`/app/`)에 venv 생성 필요
+
+---
+
 ## uv 배포 핵심 원리
 
 ### Django import 에러가 나는 3가지 원인
@@ -137,25 +171,26 @@ uv run python -c "import django; print(django.get_version())"
 - 로컬 OK + 배포 실패 → 빌드에서 uv sync 안 돌고 있음
 - 로컬도 실패 → pyproject.toml 확인 필요
 
-### 해결 방법 2가지
+### 해결 방법 (Nixpacks 환경)
 
-**방법 1: uv run 사용 (권장하지 않음 - Railway에서 불안정)**
+**❌ 실패하는 방법들:**
+
+1. `uv sync` + `uv run` → .venv 경로 문제
+2. `uv pip install --system` → Nix 파일시스템 읽기 전용
+
+**✅ 정답: /app/에 venv 생성 + 명시적 경로**
 ```toml
 [phases.install]
-cmds = ["uv sync --frozen"]
+cmds = ["uv venv /app/.venv && uv pip install -r pyproject.toml"]
 
 [start]
-cmd = "uv run python manage.py migrate && uv run gunicorn ..."
+cmd = "/app/.venv/bin/python manage.py migrate && /app/.venv/bin/gunicorn ..."
 ```
 
-**방법 2: 시스템 Python에 설치 (현재 사용 중)**
-```toml
-[phases.install]
-cmds = ["uv pip install --system -r pyproject.toml"]
-
-[start]
-cmd = "python manage.py migrate && gunicorn ..."
-```
+**핵심:**
+- `/nix/store/`는 읽기 전용 → `--system` 불가
+- `/app/`은 쓰기 가능 → 여기에 venv 생성
+- 실행 시 `/app/.venv/bin/` 경로 명시
 
 ---
 
