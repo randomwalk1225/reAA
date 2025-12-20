@@ -78,7 +78,7 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">필터 계수 (α)</label>
                     <input type="range" x-model="alpha" min="0.9" max="0.99" step="0.005"
-                           class="w-full" @input="runAnalysis()">
+                           class="w-full" @input="debouncedRunAnalysis()">
                     <div class="flex justify-between text-xs text-gray-500 mt-1">
                         <span>0.90</span>
                         <span class="font-medium text-gray-900" x-text="alpha"></span>
@@ -90,7 +90,7 @@
                 <div x-show="method === 'eckhardt'" x-cloak class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">BFImax</label>
                     <input type="range" x-model="bfiMax" min="0.5" max="0.95" step="0.05"
-                           class="w-full" @input="runAnalysis()">
+                           class="w-full" @input="debouncedRunAnalysis()">
                     <div class="flex justify-between text-xs text-gray-500 mt-1">
                         <span>0.50</span>
                         <span class="font-medium text-gray-900" x-text="bfiMax"></span>
@@ -170,10 +170,12 @@ function baseflowAnalysis() {
         alpha: 0.925,
         bfiMax: 0.80,
         analyzing: false,
+        loading: false,
         results: null,
         chart: null,
         dischargeData: [],
         baseflowData: [],
+        debounceTimer: null,
 
         init() {
             this.initChart();
@@ -181,12 +183,14 @@ function baseflowAnalysis() {
             const params = new URLSearchParams(window.location.search);
             if (params.get('station')) {
                 this.stationId = params.get('station');
-                this.loadStationData();
+                // 약간의 딜레이 후 로드 (DOM 안정화)
+                setTimeout(() => this.loadStationData(), 100);
             }
         },
 
         loadStationData() {
-            if (!this.stationId) return;
+            if (!this.stationId || this.loading) return;
+            this.loading = true;
 
             // 샘플 데이터 생성 (실제로는 API 호출)
             const days = 365;
@@ -199,8 +203,15 @@ function baseflowAnalysis() {
             }
             // 배열 한 번에 할당 (반응성 최소화)
             this.dischargeData = data;
+            this.loading = false;
 
-            this.runAnalysis();
+            // 디바운스된 분석 실행
+            this.debouncedRunAnalysis();
+        },
+
+        debouncedRunAnalysis() {
+            if (this.debounceTimer) clearTimeout(this.debounceTimer);
+            this.debounceTimer = setTimeout(() => this.runAnalysis(), 150);
         },
 
         initChart() {
