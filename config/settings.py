@@ -193,11 +193,16 @@ ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 # 이메일 설정 (django-allauth 65.x+)
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
-ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 # 소셜 로그인 설정
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+
+# 이메일 백엔드 (콘솔 출력, 프로덕션에서는 SMTP 설정 필요)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # OAuth Provider 설정 (환경변수에서 읽기)
 SOCIALACCOUNT_PROVIDERS = {
