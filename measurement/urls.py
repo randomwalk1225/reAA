@@ -44,4 +44,10 @@ urlpatterns = [
     path('baseflow/<int:pk>/pdf/', views.export_baseflow_pdf, name='export_baseflow_pdf'),
     path('baseflow/run/', views.run_baseflow_analysis, name='run_baseflow_analysis'),
     path('baseflow/save/', views.save_baseflow_analysis, name='save_baseflow_analysis'),
+
+    # 측정 데이터 자동저장 및 히스토리 API
+    path('api/session/autosave/', views.api_measurement_autosave, name='api_measurement_autosave'),
+    path('api/session/history/', views.api_measurement_history, name='api_measurement_history'),
+    path('api/session/<int:session_id>/load/', views.api_measurement_load, name='api_measurement_load'),
+    path('api/session/<int:session_id>/delete/', views.api_measurement_delete, name='api_measurement_delete'),
 ]

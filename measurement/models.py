@@ -230,3 +230,46 @@ class BaseflowDaily(models.Model):
 
     def __str__(self):
         return f"{self.date} Q={self.total_discharge} BF={self.baseflow}"
+
+
+class MeasurementSession(models.Model):
+    """측정 데이터 입력 세션 (자동저장)"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='measurement_sessions',
+        verbose_name='사용자'
+    )
+
+    # 측정 정보
+    station_name = models.CharField(max_length=100, blank=True, verbose_name='관측소명')
+    measurement_date = models.DateField(null=True, blank=True, verbose_name='측정일')
+    session_number = models.PositiveSmallIntegerField(default=1, verbose_name='측정회차')
+
+    # 데이터 저장 (JSON)
+    rows_data = models.JSONField(default=list, verbose_name='측선 데이터')
+    calibration_data = models.JSONField(default=dict, verbose_name='검정계수')
+
+    # 계산 결과
+    estimated_discharge = models.FloatField(null=True, blank=True, verbose_name='예상유량(m³/s)')
+    total_width = models.FloatField(null=True, blank=True, verbose_name='총폭(m)')
+    max_depth = models.FloatField(null=True, blank=True, verbose_name='최대수심(m)')
+    total_area = models.FloatField(null=True, blank=True, verbose_name='단면적(m²)')
+
+    # 메타
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
+
+    class Meta:
+        verbose_name = '측정 세션'
+        verbose_name_plural = '측정 세션'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['user', '-updated_at']),
+        ]
+
+    def __str__(self):
+        loc = self.station_name or '미지정'
+        date_str = self.measurement_date.strftime('%Y-%m-%d') if self.measurement_date else '미지정'
+        return f"{self.user} - {loc} ({date_str}) #{self.session_number}"

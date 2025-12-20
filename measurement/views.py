@@ -1068,3 +1068,167 @@ def export_baseflow_pdf(request, pk):
         import traceback
         traceback.print_exc()
         return HttpResponse(f'Error generating PDF: {str(e)}', status=500)
+
+
+# ============================================
+# 측정 데이터 자동저장 및 히스토리
+# ============================================
+
+@require_http_methods(["POST"])
+def api_measurement_autosave(request):
+    """측정 데이터 자동저장 API"""
+    from .models import MeasurementSession
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+
+        session_id = data.get('session_id')  # 기존 세션 업데이트 시
+        station_name = data.get('station_name', '')
+        measurement_date = data.get('measurement_date')
+        session_number = int(data.get('session_number', 1))
+        rows_data = data.get('rows', [])
+        calibration_data = data.get('calibration', {})
+        estimated_discharge = data.get('estimated_discharge')
+        total_width = data.get('total_width')
+        max_depth = data.get('max_depth')
+        total_area = data.get('total_area')
+
+        # 날짜 파싱
+        parsed_date = None
+        if measurement_date:
+            try:
+                parsed_date = datetime.strptime(measurement_date, '%Y-%m-%d').date()
+            except:
+                pass
+
+        # 기존 세션 업데이트 또는 새로 생성
+        if session_id:
+            try:
+                session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+            except MeasurementSession.DoesNotExist:
+                session = None
+        else:
+            session = None
+
+        if session:
+            # 기존 세션 업데이트
+            session.station_name = station_name
+            session.measurement_date = parsed_date
+            session.session_number = session_number
+            session.rows_data = rows_data
+            session.calibration_data = calibration_data
+            session.estimated_discharge = estimated_discharge
+            session.total_width = total_width
+            session.max_depth = max_depth
+            session.total_area = total_area
+            session.save()
+        else:
+            # 새 세션 생성
+            session = MeasurementSession.objects.create(
+                user=request.user,
+                station_name=station_name,
+                measurement_date=parsed_date,
+                session_number=session_number,
+                rows_data=rows_data,
+                calibration_data=calibration_data,
+                estimated_discharge=estimated_discharge,
+                total_width=total_width,
+                max_depth=max_depth,
+                total_area=total_area,
+            )
+
+        return JsonResponse({
+            'success': True,
+            'session_id': session.pk,
+            'updated_at': session.updated_at.isoformat(),
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_GET
+def api_measurement_history(request):
+    """측정 데이터 히스토리 목록 API"""
+    from .models import MeasurementSession
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    limit = int(request.GET.get('limit', 20))
+
+    sessions = MeasurementSession.objects.filter(
+        user=request.user
+    ).order_by('-updated_at')[:limit]
+
+    history = []
+    for s in sessions:
+        history.append({
+            'id': s.pk,
+            'station_name': s.station_name or '미지정',
+            'measurement_date': s.measurement_date.strftime('%Y-%m-%d') if s.measurement_date else None,
+            'session_number': s.session_number,
+            'estimated_discharge': s.estimated_discharge,
+            'row_count': len(s.rows_data) if s.rows_data else 0,
+            'updated_at': s.updated_at.strftime('%Y-%m-%d %H:%M'),
+            'created_at': s.created_at.strftime('%Y-%m-%d %H:%M'),
+        })
+
+    return JsonResponse({
+        'history': history,
+        'count': len(history),
+    })
+
+
+@require_GET
+def api_measurement_load(request, session_id):
+    """저장된 측정 데이터 불러오기 API"""
+    from .models import MeasurementSession
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    try:
+        session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+
+        return JsonResponse({
+            'success': True,
+            'session_id': session.pk,
+            'station_name': session.station_name,
+            'measurement_date': session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else None,
+            'session_number': session.session_number,
+            'rows': session.rows_data,
+            'calibration': session.calibration_data,
+            'estimated_discharge': session.estimated_discharge,
+            'total_width': session.total_width,
+            'max_depth': session.max_depth,
+            'total_area': session.total_area,
+            'updated_at': session.updated_at.isoformat(),
+        })
+
+    except MeasurementSession.DoesNotExist:
+        return JsonResponse({'error': '세션을 찾을 수 없습니다.'}, status=404)
+
+
+@require_http_methods(["DELETE"])
+def api_measurement_delete(request, session_id):
+    """측정 데이터 세션 삭제 API"""
+    from .models import MeasurementSession
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    try:
+        session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+        session.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': '삭제되었습니다.',
+        })
+
+    except MeasurementSession.DoesNotExist:
+        return JsonResponse({'error': '세션을 찾을 수 없습니다.'}, status=404)

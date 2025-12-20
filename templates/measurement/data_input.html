@@ -124,14 +124,40 @@
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h1 class="text-xl font-bold text-gray-900">측정 데이터 입력</h1>
-                <p class="text-sm text-gray-600">{{ measurement.station_name|default:"경주 대종천 하류보" }} | {{ measurement.date|default:"2025-05-01" }}</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="text" x-model="stationName" @input="scheduleAutoSave"
+                           class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5"
+                           placeholder="관측소명 입력">
+                    <span class="text-gray-400">|</span>
+                    <input type="date" x-model="measurementDate" @change="scheduleAutoSave"
+                           class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5">
+                </div>
             </div>
 
             <div class="flex items-center gap-4">
+                <!-- 히스토리 토글 -->
+                <button @click="showHistory = !showHistory"
+                        class="inline-flex items-center px-3 py-1.5 text-sm rounded-lg transition-colors"
+                        :class="showHistory ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    히스토리
+                </button>
+
+                <!-- 새로 입력 (초기화) -->
+                <button @click="resetForm"
+                        class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    새로 입력
+                </button>
+
                 <!-- 측정 회차 -->
                 <div class="flex items-center gap-2">
                     <label class="text-sm text-gray-600">측정회차:</label>
-                    <select x-model="currentSession" @change="switchSession"
+                    <select x-model="currentSession" @change="switchSession; scheduleAutoSave()"
                             class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500">
                         <option value="1">1차</option>
                         <option value="2">2차</option>
@@ -145,8 +171,27 @@
                 </div>
 
                 <!-- 저장 상태 -->
-                <div class="flex items-center gap-2 text-sm text-gray-500">
-                    <span x-show="isSaved" class="text-green-600">저장됨</span>
+                <div class="flex items-center gap-2 text-sm">
+                    <template x-if="isSaving">
+                        <span class="text-amber-600 flex items-center">
+                            <svg class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            저장 중...
+                        </span>
+                    </template>
+                    <template x-if="!isSaving && isSaved">
+                        <span class="text-green-600 flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            자동 저장됨
+                        </span>
+                    </template>
+                    <template x-if="!isSaving && !isSaved && !isAuthenticated">
+                        <span class="text-gray-400">로그인 시 자동저장</span>
+                    </template>
                 </div>
             </div>
         </div>
@@ -222,6 +267,52 @@
         </div>
 
         <div class="flex gap-4">
+            <!-- History Panel (Left Side) -->
+            <div x-show="showHistory" x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 -translate-x-4" x-transition:enter-end="opacity-100 translate-x-0"
+                 class="w-72 flex-shrink-0">
+                <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+                    <div class="bg-amber-50 px-4 py-3 border-b flex items-center justify-between">
+                        <h3 class="font-medium text-amber-800">저장된 기록</h3>
+                        <button @click="loadHistory" class="text-amber-600 hover:text-amber-800">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="max-h-96 overflow-y-auto">
+                        <template x-if="historyLoading">
+                            <div class="p-4 text-center text-gray-500">
+                                <svg class="w-6 h-6 mx-auto animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                        </template>
+                        <template x-if="!historyLoading && historyItems.length === 0">
+                            <div class="p-4 text-center text-gray-500 text-sm">
+                                저장된 기록이 없습니다.
+                            </div>
+                        </template>
+                        <template x-for="item in historyItems" :key="item.id">
+                            <div @click="loadSession(item.id)"
+                                 class="px-4 py-3 border-b hover:bg-amber-50 cursor-pointer transition-colors"
+                                 :class="sessionId === item.id ? 'bg-amber-100' : ''">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium text-sm text-gray-900" x-text="item.station_name"></span>
+                                    <span class="text-xs text-gray-400" x-text="item.session_number + '차'"></span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1" x-text="item.measurement_date || '날짜 미지정'"></div>
+                                <div class="flex items-center justify-between mt-1">
+                                    <span class="text-xs text-primary-600 font-medium" x-text="item.estimated_discharge ? item.estimated_discharge.toFixed(3) + ' m³/s' : '-'"></span>
+                                    <span class="text-xs text-gray-400" x-text="item.updated_at"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
             <!-- Data Grid -->
             <div class="flex-1 bg-white rounded-lg shadow-sm border overflow-hidden min-w-0">
                 <div class="overflow-x-auto">
@@ -619,11 +710,29 @@
 <script>
 function dataInputGrid() {
     return {
+        // 세션 정보
+        sessionId: null,
+        stationName: '',
+        measurementDate: '',
         currentSession: '1',
+
+        // UI 상태
         selectedRow: null,
         expandedRow: 0,
         showChart: true,
-        isSaved: true,
+        showHistory: false,
+
+        // 저장 상태
+        isSaved: false,
+        isSaving: false,
+        isAuthenticated: {{ user.is_authenticated|yesno:"true,false" }},
+        autoSaveTimer: null,
+
+        // 히스토리
+        historyItems: [],
+        historyLoading: false,
+
+        // 계산 결과
         estimatedDischarge: '--',
         crossSectionChartPC: null,
         crossSectionChartMobile: null,
@@ -635,17 +744,13 @@ function dataInputGrid() {
             b: 0.2534
         },
 
-        // 초기 데이터
-        rows: [
-            { id: 1, distance: 0, depth: 0, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 2, distance: 1.5, depth: 0.45, method: '1', n_02d: null, t_02d: null, n_06d: 42, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 3, distance: 3.0, depth: 0.72, method: '2', n_02d: 65, t_02d: 60, n_06d: null, t_06d: null, n_08d: 38, t_08d: 60, velocity: 0 },
-            { id: 4, distance: 4.5, depth: 1.20, method: '3', n_02d: 82, t_02d: 60, n_06d: 75, t_06d: 60, n_08d: 45, t_08d: 60, velocity: 0 },
-            { id: 5, distance: 6.0, depth: 1.35, method: '3', n_02d: 95, t_02d: 60, n_06d: 88, t_06d: 60, n_08d: 52, t_08d: 60, velocity: 0 },
-            { id: 6, distance: 7.5, depth: 0.85, method: '2', n_02d: 70, t_02d: 60, n_06d: null, t_06d: null, n_08d: 42, t_08d: 60, velocity: 0 },
-            { id: 7, distance: 9.0, depth: 0.50, method: '1', n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 8, distance: 10.5, depth: 0, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+        // 초기 데이터 (빈 폼)
+        defaultRows: [
+            { id: 1, distance: null, depth: null, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 2, distance: null, depth: null, method: '1', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 3, distance: null, depth: null, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
         ],
+        rows: [],
 
         get totalWidth() {
             if (this.rows.length < 2) return 0;
@@ -668,6 +773,12 @@ function dataInputGrid() {
         },
 
         init() {
+            // 초기 rows 설정
+            this.rows = JSON.parse(JSON.stringify(this.defaultRows));
+
+            // 오늘 날짜로 기본값 설정
+            this.measurementDate = new Date().toISOString().split('T')[0];
+
             // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
             this.rows.forEach((row, index) => this.calculateVelocity(index));
             this.updateEstimatedDischarge();
@@ -689,6 +800,13 @@ function dataInputGrid() {
                 }
             });
 
+            // showHistory 변경 시 히스토리 로드
+            this.$watch('showHistory', (value) => {
+                if (value && this.historyItems.length === 0) {
+                    this.loadHistory();
+                }
+            });
+
             // 화면 크기 변경 시 차트 다시 그리기
             let resizeTimer;
             window.addEventListener('resize', () => {
@@ -697,6 +815,118 @@ function dataInputGrid() {
                     this.updateCrossSectionChart();
                 }, 250);
             });
+        },
+
+        // ===== 자동저장 =====
+        scheduleAutoSave() {
+            if (!this.isAuthenticated) return;
+
+            this.isSaved = false;
+            if (this.autoSaveTimer) {
+                clearTimeout(this.autoSaveTimer);
+            }
+            this.autoSaveTimer = setTimeout(() => this.autoSave(), 2000);
+        },
+
+        async autoSave() {
+            if (!this.isAuthenticated) return;
+
+            this.isSaving = true;
+            try {
+                const response = await fetch('{% url "measurement:api_measurement_autosave" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        session_id: this.sessionId,
+                        station_name: this.stationName,
+                        measurement_date: this.measurementDate,
+                        session_number: parseInt(this.currentSession),
+                        rows: this.rows,
+                        calibration: this.calibration,
+                        estimated_discharge: parseFloat(this.estimatedDischarge) || null,
+                        total_width: this.totalWidth,
+                        max_depth: this.maxDepth,
+                        total_area: this.totalArea,
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.sessionId = result.session_id;
+                    this.isSaved = true;
+                    // 히스토리가 열려있으면 갱신
+                    if (this.showHistory) {
+                        this.loadHistory();
+                    }
+                } else {
+                    console.error('Auto-save failed:', await response.text());
+                }
+            } catch (e) {
+                console.error('Auto-save error:', e);
+            } finally {
+                this.isSaving = false;
+            }
+        },
+
+        // ===== 히스토리 =====
+        async loadHistory() {
+            if (!this.isAuthenticated) return;
+
+            this.historyLoading = true;
+            try {
+                const response = await fetch('{% url "measurement:api_measurement_history" %}');
+                if (response.ok) {
+                    const result = await response.json();
+                    this.historyItems = result.history;
+                }
+            } catch (e) {
+                console.error('Load history error:', e);
+            } finally {
+                this.historyLoading = false;
+            }
+        },
+
+        async loadSession(sessionId) {
+            try {
+                const response = await fetch(`/measurement/api/session/${sessionId}/load/`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.sessionId = data.session_id;
+                    this.stationName = data.station_name || '';
+                    this.measurementDate = data.measurement_date || '';
+                    this.currentSession = String(data.session_number || 1);
+                    this.rows = data.rows || JSON.parse(JSON.stringify(this.defaultRows));
+                    this.calibration = data.calibration || { a: 0.0012, b: 0.2534 };
+
+                    // 유속 재계산
+                    this.rows.forEach((row, index) => this.calculateVelocity(index));
+                    this.updateEstimatedDischarge();
+                    this.isSaved = true;
+                }
+            } catch (e) {
+                console.error('Load session error:', e);
+                alert('데이터를 불러오는데 실패했습니다.');
+            }
+        },
+
+        // ===== 초기화 =====
+        resetForm() {
+            if (this.rows.some(r => r.distance || r.depth)) {
+                if (!confirm('현재 입력된 데이터가 삭제됩니다. 새로 입력하시겠습니까?')) {
+                    return;
+                }
+            }
+            this.sessionId = null;
+            this.stationName = '';
+            this.measurementDate = new Date().toISOString().split('T')[0];
+            this.currentSession = '1';
+            this.rows = JSON.parse(JSON.stringify(this.defaultRows));
+            this.rows.forEach((row, index) => this.calculateVelocity(index));
+            this.updateEstimatedDischarge();
+            this.isSaved = false;
         },
 
         toggleRow(index) {
@@ -715,16 +945,16 @@ function dataInputGrid() {
                 n_08d: null, t_08d: null,
                 velocity: 0
             });
-            this.isSaved = false;
             this.expandedRow = this.rows.length - 1;
+            this.scheduleAutoSave();
         },
 
         deleteRow(index) {
             if (this.rows.length > 2) {
                 this.rows.splice(index, 1);
                 this.expandedRow = null;
-                this.isSaved = false;
                 this.updateEstimatedDischarge();
+                this.scheduleAutoSave();
             }
         },
 
@@ -732,8 +962,8 @@ function dataInputGrid() {
             if (this.selectedRow !== null && this.rows.length > 2) {
                 this.rows.splice(this.selectedRow, 1);
                 this.selectedRow = null;
-                this.isSaved = false;
                 this.updateEstimatedDischarge();
+                this.scheduleAutoSave();
             }
         },
 
@@ -784,8 +1014,8 @@ function dataInputGrid() {
             }
 
             row.velocity = velocity;
-            this.isSaved = false;
             this.updateEstimatedDischarge();
+            this.scheduleAutoSave();
         },
 
         updateEstimatedDischarge() {
@@ -893,9 +1123,9 @@ function dataInputGrid() {
 
                 this.rows.forEach((row, index) => this.calculateVelocity(index));
                 this.updateEstimatedDischarge();
-                this.isSaved = false;
                 this.expandedRow = 0;
                 event.target.value = '';
+                this.scheduleAutoSave();
             };
             reader.readAsText(file);
         },
@@ -933,8 +1163,7 @@ function dataInputGrid() {
         },
 
         saveDraft() {
-            console.log('Saving draft:', this.rows);
-            this.isSaved = true;
+            this.autoSave();
         },
 
         async calculate() {
