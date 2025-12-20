@@ -52,8 +52,7 @@ server.log
 nul
 공부용자료/
 
-# Credentials
-config/
+# Credentials (config/ 폴더는 Django 설정이므로 제외하면 안됨)
 credentials*.json
 client_secret*.json
 resource/googlekey/

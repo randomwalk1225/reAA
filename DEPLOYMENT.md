@@ -271,6 +271,28 @@ git add -A && git commit -m "message" && git push origin master
 
 ---
 
+### 2025-12-20: .dockerignore에서 config/ 제외로 Django 설정 누락
+
+**증상:**
+```
+ModuleNotFoundError: No module named 'config'
+```
+
+**원인:**
+- `.dockerignore`에 `config/` 추가됨
+- `.gitignore`의 `config/`는 credential 파일용이었음
+- Django 설정 폴더 `config/`가 Docker 빌드에서 제외됨
+
+**해결:**
+- `.dockerignore`에서 `config/` 제거
+- Django 설정 폴더는 반드시 포함되어야 함
+
+**핵심 교훈:**
+1. `.gitignore`와 `.dockerignore`의 목적이 다름
+2. `.dockerignore` 작성 시 앱 필수 폴더 확인 필요
+
+---
+
 ### 2025-12-20: railway.json이 Dockerfile을 무시함
 
 **증상:**
