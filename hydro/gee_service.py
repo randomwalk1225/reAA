@@ -45,39 +45,32 @@ def init_gee():
         return True
 
     try:
-        import tempfile
-
         # 서비스 계정 키 (JSON 문자열 또는 파일 경로)
-        key_data = os.environ.get('GEE_SERVICE_ACCOUNT_KEY', '')
-        project_id = os.environ.get('GEE_PROJECT_ID', 'ee-discharge-measurement')
+        key_json = os.environ.get('GEE_SERVICE_ACCOUNT_JSON', '')
+        project_id = os.environ.get('GEE_PROJECT_ID', 'hydrolink-481811')
 
-        if key_data:
+        if key_json:
             # JSON 문자열인 경우 (Railway 환경변수)
-            if key_data.strip().startswith('{'):
-                key_dict = json.loads(key_data)
-                # 임시 파일에 저장
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                    json.dump(key_dict, f)
-                    key_path = f.name
-
+            if key_json.strip().startswith('{'):
+                key_info = json.loads(key_json)
                 credentials = ee.ServiceAccountCredentials(
-                    email=key_dict.get('client_email'),
-                    key_file=key_path
+                    key_info['client_email'],
+                    key_data=key_json  # JSON 문자열 전달
                 )
                 ee.Initialize(credentials, project=project_id)
 
             # 파일 경로인 경우
-            elif os.path.exists(key_data):
-                with open(key_data) as f:
-                    key_dict = json.load(f)
-
+            elif os.path.exists(key_json):
+                with open(key_json) as f:
+                    key_str = f.read()
+                key_info = json.loads(key_str)
                 credentials = ee.ServiceAccountCredentials(
-                    email=key_dict.get('client_email'),
-                    key_file=key_data
+                    key_info['client_email'],
+                    key_data=key_str  # JSON 문자열 전달
                 )
                 ee.Initialize(credentials, project=project_id)
             else:
-                raise ValueError("GEE_SERVICE_ACCOUNT_KEY가 유효하지 않습니다")
+                raise ValueError("GEE_SERVICE_ACCOUNT_JSON이 유효하지 않습니다")
         else:
             # 기본 인증 (로컬 개발용 - gcloud auth 필요)
             ee.Initialize(project=project_id)
@@ -86,7 +79,7 @@ def init_gee():
         return True
 
     except Exception as e:
-        _gee_init_error = f"{e} | PROJECT_ID={project_id} | KEY_SET={bool(key_data)} | KEY_LEN={len(key_data) if key_data else 0}"
+        _gee_init_error = f"{e} | PROJECT_ID={project_id} | KEY_SET={bool(key_json)} | KEY_LEN={len(key_json) if key_json else 0}"
         logger.error(f"GEE 초기화 실패: {_gee_init_error}")
         return False
 
