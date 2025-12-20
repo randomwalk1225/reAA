@@ -15,7 +15,10 @@ Landsat 위성 데이터를 활용한 증발산량(ET) 계산
 """
 import os
 import json
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 # GEE 사용 가능 여부
 _gee_available = False
@@ -27,13 +30,15 @@ except ImportError:
 
 # GEE 초기화 상태
 _gee_initialized = False
+_gee_init_error = None
 
 
 def init_gee():
     """Google Earth Engine 초기화"""
-    global _gee_initialized
+    global _gee_initialized, _gee_init_error
 
     if not _gee_available:
+        _gee_init_error = "earthengine-api 미설치"
         return False
 
     if _gee_initialized:
@@ -81,12 +86,8 @@ def init_gee():
         return True
 
     except Exception as e:
-        import traceback
-        print(f"GEE 초기화 실패: {e}")
-        print(f"GEE_PROJECT_ID: {project_id}")
-        print(f"GEE_SERVICE_ACCOUNT_KEY 설정됨: {bool(key_data)}")
-        print(f"GEE_SERVICE_ACCOUNT_KEY 길이: {len(key_data) if key_data else 0}")
-        print(f"Traceback: {traceback.format_exc()}")
+        _gee_init_error = f"{e} | PROJECT_ID={project_id} | KEY_SET={bool(key_data)} | KEY_LEN={len(key_data) if key_data else 0}"
+        logger.error(f"GEE 초기화 실패: {_gee_init_error}")
         return False
 
 
@@ -228,7 +229,7 @@ def get_vegetation_indices(lat, lon, date=None, buffer_km=5):
         }
 
     if not init_gee():
-        return {'error': 'GEE 초기화 실패', 'status': 'unavailable'}
+        return {'error': f'GEE 초기화 실패: {_gee_init_error}', 'status': 'unavailable'}
 
     import ee
 
