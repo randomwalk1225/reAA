@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Local files
+*.xls
+*.xlsm
+*.xlsx
+*.xml
+*.zip
+*.xlk
+*.bin
+*.png
+*.json
+!railway.json
+extracted_*/
+docs/
+test_*.py
+analyze_*.py
+extract_*.py
+check_*.py
+oledump.py
+patch_dpb.py
+server.log
+nul
+공부용자료/
+
+# Credentials
+config/
+credentials*.json
+client_secret*.json
+resource/googlekey/
+
+# Webapp local
+webapp/
