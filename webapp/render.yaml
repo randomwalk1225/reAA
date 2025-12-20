@@ -29,4 +29,4 @@ services:
           name: discharge-db
           property: connectionString
       - key: HRFCO_API_KEY
-        sync: false  # Render 대시보드에서 수동 설정
+        value: 9E50673B-2D96-4436-BA86-756E81D3C738
