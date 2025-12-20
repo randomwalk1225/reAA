@@ -58,12 +58,20 @@ def init_gee():
 
         if client_email and private_key_b64:
             private_key = base64.b64decode(private_key_b64).decode('utf-8')
+            # client_x509_cert_url 생성
+            from urllib.parse import quote
+            cert_url = f"https://www.googleapis.com/robot/v1/metadata/x509/{quote(client_email, safe='')}"
+
             key_info = {
                 'type': 'service_account',
                 'project_id': project_id,
                 'client_email': client_email,
                 'private_key': private_key,
+                'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
                 'token_uri': 'https://oauth2.googleapis.com/token',
+                'auth_provider_x509_cert_url': 'https://www.googleapis.com/oauth2/v1/certs',
+                'client_x509_cert_url': cert_url,
+                'universe_domain': 'googleapis.com',
             }
 
             # 임시 파일에 JSON 저장 후 key_file로 전달
