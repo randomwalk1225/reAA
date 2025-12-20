@@ -52,10 +52,26 @@ def init_gee():
         if key_json:
             # JSON 문자열인 경우 (Railway 환경변수)
             if key_json.strip().startswith('{'):
-                key_info = json.loads(key_json)
+                # Railway가 \n을 실제 줄바꿈으로 변환하는 문제 해결
+                # private_key 내의 실제 줄바꿈을 \n 문자열로 복원
+                import re
+                # "private_key": "..." 부분에서 실제 줄바꿈을 \n으로 변환
+                def fix_private_key(match):
+                    pk = match.group(1)
+                    pk_fixed = pk.replace('\n', '\\n')
+                    return f'"private_key": "{pk_fixed}"'
+
+                key_json_fixed = re.sub(
+                    r'"private_key":\s*"(.*?)"(?=,\s*"client_email")',
+                    fix_private_key,
+                    key_json,
+                    flags=re.DOTALL
+                )
+
+                key_info = json.loads(key_json_fixed)
                 credentials = ee.ServiceAccountCredentials(
                     key_info['client_email'],
-                    key_data=key_json  # JSON 문자열 전달
+                    key_data=key_json_fixed  # JSON 문자열 전달
                 )
                 ee.Initialize(credentials, project=project_id)
 
