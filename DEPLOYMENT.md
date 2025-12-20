@@ -18,20 +18,24 @@
 
 ---
 
-## 현재 nixpacks.toml 설정
+## 현재 배포 설정: Dockerfile
 
-```toml
-[phases.setup]
-nixPkgs = ["python312", "uv"]
+Nixpacks + uv 조합 실패로 Dockerfile 사용
 
-[phases.install]
-cmds = ["uv venv /app/.venv && uv pip install -r pyproject.toml"]
-
-[start]
-cmd = "/app/.venv/bin/python manage.py migrate && /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+RUN pip install uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY . .
+CMD uv run python manage.py migrate && uv run gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}
 ```
 
-**중요:** Nixpacks는 `/nix/store/`가 읽기 전용이므로 반드시 `/app/` 경로에 venv 생성
+**장점:**
+- 빌드/런타임 환경 동일
+- 디버깅 용이
+- uv sync + uv run 정상 동작
 
 ---
 
@@ -108,6 +112,38 @@ collision between gcc and gfortran
 **해결:**
 - uv 사용 (wheel 패키지 우선 설치)
 - nixpacks.toml로 uv 강제 사용
+
+---
+
+### 2024-12-20: Nixpacks + uv 조합 배포 실패 분석
+
+**문제 요약:**
+Railway Nixpacks 환경에서 uv로 패키지 설치 시, 빌드는 성공하나 런타임에서 `ModuleNotFoundError: No module named 'django'` 발생
+
+**시도한 방법들:**
+
+| # | 방법 | 결과 | 실패 원인 |
+|---|------|------|----------|
+| 1 | `uv sync` + `uv run python` | ❌ | .venv 경로를 런타임에서 못 찾음 |
+| 2 | `uv pip install --system` | ❌ | Nix 파일시스템 읽기 전용 |
+| 3 | `uv venv /app/.venv` + `/app/.venv/bin/python` | ❌ | venv가 런타임에 없음 |
+| 4 | `VIRTUAL_ENV=/app/.venv uv pip install` | ❌ | 동일 |
+| 5 | `uv pip install --target /app/vendor` + `PYTHONPATH` | ❌ | vendor 폴더가 런타임에 없음 |
+
+**근본 원인 추정:**
+1. Nixpacks 빌드 phase와 런타임 phase의 파일시스템 상태가 다름
+2. 빌드 시 작업 디렉토리가 `/app`이 아닐 수 있음
+3. Docker 레이어 캐싱 문제로 설치된 파일이 최종 이미지에 포함 안 됨
+
+**해결책:**
+- Nixpacks 포기 → Dockerfile 직접 작성
+- Dockerfile은 빌드/런타임이 동일 이미지에서 실행되어 문제 없음
+
+**교훈:**
+1. Nixpacks는 자동화가 편하지만 디버깅이 어려움
+2. uv + Nixpacks 조합은 검증되지 않은 조합
+3. 문제 발생 시 Build Logs를 먼저 분석해야 함
+4. 여러 방법 시도 전에 원인 파악이 우선
 
 ---
 
