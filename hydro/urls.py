@@ -21,6 +21,10 @@ urlpatterns = [
     path('api/et/calculate/', views.api_calculate_et, name='api_calculate_et'),
     path('api/et/locations/', views.api_preset_locations, name='api_preset_locations'),
 
+    # 내 기록
+    path('my-history/', views.my_history, name='my_history'),
+    path('api/my/et-history/', views.api_my_et_history, name='api_my_et_history'),
+
     # 디버그 (임시)
     path('api/debug/env/', views.api_debug_env, name='api_debug_env'),
 ]

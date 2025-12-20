@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}내 조회 기록 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">내 조회 기록</h1>
+        <p class="text-gray-600">저장된 분석 및 조회 기록을 확인할 수 있습니다.</p>
+    </div>
+
+    <!-- 탭 -->
+    <div class="mb-6 border-b" x-data="{ tab: 'et' }">
+        <nav class="flex space-x-4">
+            <button @click="tab = 'et'" :class="tab === 'et' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="py-2 px-1 border-b-2 font-medium text-sm">
+                증발산량 ({{ et_queries|length }})
+            </button>
+            <button @click="tab = 'baseflow'" :class="tab === 'baseflow' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="py-2 px-1 border-b-2 font-medium text-sm">
+                기저유출
+            </button>
+            <button @click="tab = 'measurement'" :class="tab === 'measurement' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'" class="py-2 px-1 border-b-2 font-medium text-sm">
+                측정 데이터
+            </button>
+        </nav>
+
+        <!-- 증발산량 기록 -->
+        <div x-show="tab === 'et'" class="mt-4">
+            {% if et_queries %}
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">위치</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">좌표</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">NDVI</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ET (mm/day)</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">조회일시</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">다시보기</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for q in et_queries %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ q.location_name|default:"-" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-500">({{ q.latitude|floatformat:4 }}, {{ q.longitude|floatformat:4 }})</td>
+                            <td class="px-4 py-3 text-sm text-gray-900 text-right tabular-nums">{{ q.ndvi|floatformat:3|default:"-" }}</td>
+                            <td class="px-4 py-3 text-sm font-medium text-emerald-600 text-right tabular-nums">{{ q.et_actual|floatformat:2|default:"-" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ q.created_at|date:"Y-m-d H:i" }}</td>
+                            <td class="px-4 py-3 text-center">
+                                <a href="{% url 'hydro:et_dashboard' %}?lat={{ q.latitude }}&lon={{ q.longitude }}&location={{ q.location_name|urlencode }}"
+                                   class="text-primary-600 hover:text-primary-800 text-sm">
+                                    열기
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-12 bg-gray-50 rounded-lg">
+                <p class="text-gray-500">증발산량 조회 기록이 없습니다.</p>
+                <a href="{% url 'hydro:et_dashboard' %}" class="mt-2 inline-block text-primary-600 hover:underline">증발산량 분석하기</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 기저유출 기록 -->
+        <div x-show="tab === 'baseflow'" x-cloak class="mt-4">
+            <div class="text-center py-12 bg-gray-50 rounded-lg">
+                <p class="text-gray-500">기저유출 분석 목록은</p>
+                <a href="{% url 'measurement:baseflow_list' %}" class="mt-2 inline-block text-primary-600 hover:underline">기저유출 목록 페이지</a>
+                <p class="text-gray-500">에서 확인하세요.</p>
+            </div>
+        </div>
+
+        <!-- 측정 데이터 기록 -->
+        <div x-show="tab === 'measurement'" x-cloak class="mt-4">
+            <div class="text-center py-12 bg-gray-50 rounded-lg">
+                <p class="text-gray-500">측정 데이터는</p>
+                <a href="{% url 'measurement:list' %}" class="mt-2 inline-block text-primary-600 hover:underline">측정 관리 페이지</a>
+                <p class="text-gray-500">에서 확인하세요.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

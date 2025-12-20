@@ -215,8 +215,48 @@ def api_calculate_et(request):
         lon = float(request.GET.get('lon', 126.9780))
         et0 = float(request.GET.get('et0', 5.0))  # 기준증발산량 (mm/day)
         date = request.GET.get('date')
+        location_name = request.GET.get('location', '')
 
         result = calculate_water_balance_et(lat, lon, et0, date)
+
+        # 로그인 사용자면 조회 기록 저장
+        if request.user.is_authenticated and result.get('status') == 'success':
+            from .models import ETQuery
+            from datetime import datetime
+            from core.tracking import log_activity
+
+            query_date = None
+            if date:
+                try:
+                    query_date = datetime.strptime(date, '%Y-%m-%d').date()
+                except:
+                    pass
+
+            et_query = ETQuery.objects.create(
+                user=request.user,
+                location_name=location_name,
+                latitude=lat,
+                longitude=lon,
+                query_date=query_date,
+                et0=et0,
+                ndvi=result.get('ndvi'),
+                ndmi=result.get('ndmi'),
+                ndwi=result.get('ndwi'),
+                kc=result.get('kc'),
+                et_actual=result.get('et_actual'),
+                soil_moisture=result.get('soil_moisture'),
+                stress_index=result.get('stress_index'),
+                raw_response=result,
+            )
+
+            # 활동 로그
+            log_activity(
+                user=request.user,
+                action_type='analysis',
+                detail=f'증발산량 조회: {location_name or f"({lat:.4f}, {lon:.4f})"}',
+                related_object=et_query,
+                request=request
+            )
 
         return JsonResponse(result)
 
@@ -234,6 +274,51 @@ def api_preset_locations(request):
             {'name': name, 'lat': coords['lat'], 'lon': coords['lon']}
             for name, coords in KOREA_LOCATIONS.items()
         ]
+    })
+
+
+@require_GET
+def api_my_et_history(request):
+    """API: 내 증발산량 조회 기록"""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
+
+    from .models import ETQuery
+
+    limit = int(request.GET.get('limit', 20))
+    queries = ETQuery.objects.filter(user=request.user)[:limit]
+
+    return JsonResponse({
+        'history': [
+            {
+                'id': q.id,
+                'location_name': q.location_name,
+                'latitude': q.latitude,
+                'longitude': q.longitude,
+                'query_date': q.query_date.isoformat() if q.query_date else None,
+                'et0': q.et0,
+                'ndvi': q.ndvi,
+                'et_actual': q.et_actual,
+                'created_at': q.created_at.isoformat(),
+            }
+            for q in queries
+        ],
+        'count': queries.count(),
+    })
+
+
+def my_history(request):
+    """내 조회/분석 기록 페이지"""
+    if not request.user.is_authenticated:
+        from django.shortcuts import redirect
+        return redirect('account_login')
+
+    from .models import ETQuery
+
+    et_queries = ETQuery.objects.filter(user=request.user)[:20]
+
+    return render(request, 'hydro/my_history.html', {
+        'et_queries': et_queries,
     })
 
 
