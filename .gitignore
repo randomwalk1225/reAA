@@ -1,21 +1,56 @@
-# Ignore everything
-*
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
 
-# Except webapp folder
-!webapp/
-!webapp/**
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+.env
 
-# But ignore these in webapp
-webapp/__pycache__/
-webapp/**/__pycache__/
-webapp/*.pyc
-webapp/**/*.pyc
-webapp/.venv/
-webapp/db.sqlite3
-webapp/staticfiles/
-webapp/media/
-webapp/*.log
-webapp/.env
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
-# Keep .gitignore itself
-!.gitignore
+# OS
+.DS_Store
+Thumbs.db
+
+# Local files (not for deployment)
+*.xls
+*.xlsm
+*.xlsx
+*.xml
+*.zip
+*.xlk
+*.bin
+*.png
+*.json
+!railway.json
+extracted_*/
+docs/
+test_*.py
+analyze_*.py
+extract_*.py
+check_*.py
+oledump.py
+patch_dpb.py
+server.log
+nul
+*.md
+!README.md
+공부용자료/
+webapp/
+
+# uv lock file
+uv.lock
