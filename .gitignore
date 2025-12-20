@@ -52,5 +52,5 @@ nul
 공부용자료/
 webapp/
 
-# uv lock file
-uv.lock
+# Keep uv.lock for deployment
+!uv.lock
