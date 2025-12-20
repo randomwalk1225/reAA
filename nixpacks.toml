@@ -1,0 +1,9 @@
+# Force Nixpacks to use uv for Python dependency installation
+[phases.setup]
+nixPkgs = ["python312", "uv"]
+
+[phases.install]
+cmds = ["uv sync --frozen --no-dev"]
+
+[start]
+cmd = "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
