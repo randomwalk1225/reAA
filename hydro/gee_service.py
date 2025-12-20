@@ -46,7 +46,7 @@ def init_gee():
 
     try:
         # 서비스 계정 키 (JSON 문자열 또는 파일 경로)
-        key_json = os.environ.get('GEE_SERVICE_ACCOUNT_JSON', '')
+        key_json = os.environ.get('GEE_SERVICE_ACCOUNT_JSON', '') or os.environ.get('GEE_SERVICE_ACCOUNT_KEY', '')
         project_id = os.environ.get('GEE_PROJECT_ID', 'hydrolink-481811')
 
         if key_json:
