@@ -109,6 +109,56 @@ collision between gcc and gfortran
 
 ---
 
+## uv 배포 핵심 원리
+
+### Django import 에러가 나는 3가지 원인
+
+1. **pyproject.toml에 Django 선언 누락**
+   - uv는 `pyproject.toml`의 dependencies를 보고 설치
+   - requirements.txt만 있고 pyproject.toml에 없으면 설치 안 됨
+
+2. **uv sync가 안 돌아감**
+   - Railway Nixpacks가 자동 빌드할 때 `pip install`로 가거나 설치 커맨드 누락
+   - Build Command를 명시적으로 설정해야 함
+
+3. **실행이 시스템 Python으로 돌아감**
+   - `uv sync`는 `.venv/`에 설치
+   - `python manage.py`는 시스템 Python 사용 → Django 못 찾음
+   - `uv run python manage.py` 또는 `--system` 설치 필요
+
+### 로컬 자가진단
+
+```bash
+# 프로젝트 루트에서 실행
+uv sync
+uv run python -c "import django; print(django.get_version())"
+```
+
+- 로컬 OK + 배포 실패 → 빌드에서 uv sync 안 돌고 있음
+- 로컬도 실패 → pyproject.toml 확인 필요
+
+### 해결 방법 2가지
+
+**방법 1: uv run 사용 (권장하지 않음 - Railway에서 불안정)**
+```toml
+[phases.install]
+cmds = ["uv sync --frozen"]
+
+[start]
+cmd = "uv run python manage.py migrate && uv run gunicorn ..."
+```
+
+**방법 2: 시스템 Python에 설치 (현재 사용 중)**
+```toml
+[phases.install]
+cmds = ["uv pip install --system -r pyproject.toml"]
+
+[start]
+cmd = "python manage.py migrate && gunicorn ..."
+```
+
+---
+
 ## Railway 환경변수 목록
 
 | 변수명 | 설명 | 필수 |
