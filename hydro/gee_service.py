@@ -45,12 +45,14 @@ def init_gee():
         return True
 
     project_id = os.environ.get('GEE_PROJECT_ID', 'hydrolink-481811')
-    key_info_str = ""
+    client_email = ''
+    private_key_b64 = ''
 
     try:
         import base64
+        import tempfile
 
-        # 방법 1: Base64 인코딩된 개별 변수 (권장 - Railway용)
+        # 방법 1: Base64 인코딩된 개별 변수 (Railway용)
         client_email = os.environ.get('GEE_CLIENT_EMAIL', '')
         private_key_b64 = os.environ.get('GEE_PRIVATE_KEY', '')
 
@@ -62,9 +64,17 @@ def init_gee():
                 'client_email': client_email,
                 'private_key': private_key
             }
-            key_info_str = json.dumps(key_info)
-            credentials = ee.ServiceAccountCredentials(client_email, key_data=key_info_str)
+
+            # 임시 파일에 JSON 저장 후 key_file로 전달
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(key_info, f)
+                temp_key_path = f.name
+
+            credentials = ee.ServiceAccountCredentials(client_email, key_file=temp_key_path)
             ee.Initialize(credentials, project=project_id)
+
+            # 임시 파일 삭제
+            os.unlink(temp_key_path)
 
         # 방법 2: 파일 경로 (로컬 개발용)
         else:
@@ -72,9 +82,8 @@ def init_gee():
 
             if key_path and os.path.exists(key_path):
                 with open(key_path) as f:
-                    key_info_str = f.read()
-                key_info = json.loads(key_info_str)
-                credentials = ee.ServiceAccountCredentials(key_info['client_email'], key_data=key_info_str)
+                    key_info = json.load(f)
+                credentials = ee.ServiceAccountCredentials(key_info['client_email'], key_file=key_path)
                 ee.Initialize(credentials, project=project_id)
             else:
                 # 기본 인증 (gcloud auth 필요)
