@@ -54,6 +54,7 @@ server.log
 nul
 *.md
 !README.md
+!DEPLOYMENT.md
 공부용자료/
 webapp/
 
