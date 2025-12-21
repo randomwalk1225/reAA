@@ -1444,10 +1444,14 @@ function dataInputGrid() {
         },
 
         async calculate() {
-            // 데이터를 서버로 전송
+            // 데이터를 서버로 전송 (세션 정보 포함)
             const data = {
                 rows: this.rows,
-                calibration: this.calibration
+                calibration: this.calibration,
+                session_id: this.sessionId,
+                station_name: this.stationName,
+                measurement_date: this.measurementDate,
+                setup_data: this.setupData,
             };
 
             try {

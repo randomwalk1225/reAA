@@ -139,8 +139,20 @@ def result(request):
             rows = data.get('rows', [])
             calibration = data.get('calibration', {'a': 0.0012, 'b': 0.2534})
 
+            # 세션 정보 추출
+            session_id = data.get('session_id')
+            station_name = data.get('station_name', '')
+            measurement_date = data.get('measurement_date', '')
+            setup_data = data.get('setup_data', {})
+
             # 계산 수행
             result_data = calculate_discharge(rows, calibration)
+
+            # 세션 정보 추가
+            result_data['session_id'] = session_id
+            result_data['station_name'] = station_name
+            result_data['measurement_date'] = measurement_date
+            result_data['setup_data'] = setup_data
 
             return render(request, 'measurement/result.html', result_data)
         except Exception as e:
@@ -1281,6 +1293,85 @@ def api_measurement_autosave(request):
             'success': True,
             'session_id': session.pk,
             'updated_at': session.updated_at.isoformat(),
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_POST
+def api_result_save(request):
+    """결과 페이지에서 최종 저장 API"""
+    from .models import MeasurementSession
+
+    try:
+        data = json.loads(request.body)
+
+        session_id = data.get('session_id')
+        station_name = data.get('station_name', '')
+        measurement_date = data.get('measurement_date')
+        discharge = data.get('discharge')
+        area = data.get('area')
+        avg_velocity = data.get('avg_velocity')
+        uncertainty = data.get('uncertainty')
+
+        # 날짜 파싱
+        parsed_date = None
+        if measurement_date:
+            try:
+                parsed_date = datetime.strptime(measurement_date, '%Y-%m-%d').date()
+            except:
+                pass
+
+        # 사용자 또는 세션키로 식별
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key or ''
+        if not session_key and not user:
+            request.session.create()
+            session_key = request.session.session_key
+
+        # 기존 세션 업데이트 또는 새로 생성
+        session = None
+        if session_id:
+            try:
+                session = MeasurementSession.objects.get(pk=session_id)
+            except MeasurementSession.DoesNotExist:
+                session = None
+
+        if session:
+            # 기존 세션 업데이트 - 결과값 저장
+            session.station_name = station_name or session.station_name
+            if parsed_date:
+                session.measurement_date = parsed_date
+            session.estimated_discharge = discharge
+            session.total_area = area
+            # 결과 데이터에 불확실도도 저장
+            if not session.setup_data:
+                session.setup_data = {}
+            session.setup_data['final_discharge'] = discharge
+            session.setup_data['final_uncertainty'] = uncertainty
+            session.setup_data['final_avg_velocity'] = avg_velocity
+            session.save()
+        else:
+            # 새 세션 생성 (드문 경우)
+            session = MeasurementSession.objects.create(
+                user=user,
+                session_key=session_key,
+                station_name=station_name,
+                measurement_date=parsed_date,
+                estimated_discharge=discharge,
+                total_area=area,
+                setup_data={
+                    'final_discharge': discharge,
+                    'final_uncertainty': uncertainty,
+                    'final_avg_velocity': avg_velocity,
+                }
+            )
+
+        return JsonResponse({
+            'success': True,
+            'session_id': session.pk,
+            'message': '결과가 저장되었습니다.',
         })
 
     except Exception as e:
