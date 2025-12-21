@@ -65,6 +65,10 @@
                            class="px-2.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap {% if request.resolver_match.url_name == 'list' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
                             측정
                         </a>
+                        <a href="{% url 'measurement:analysis_summary' %}"
+                           class="px-2.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap {% if request.resolver_match.url_name == 'analysis_summary' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+                            분석
+                        </a>
                         <a href="{% url 'measurement:pre_uncertainty' %}"
                            class="px-2.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap {% if request.resolver_match.url_name == 'pre_uncertainty' %}bg-primary-50 text-primary-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
                             사전분석
@@ -161,6 +165,7 @@
         <div x-show="mobileOpen" x-cloak class="md:hidden border-t bg-white">
             <div class="px-4 py-3 space-y-1">
                 <a href="{% url 'measurement:list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">측정 관리</a>
+                <a href="{% url 'measurement:analysis_summary' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">분석결과표</a>
                 <a href="{% url 'measurement:pre_uncertainty' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">사전분석</a>
                 <a href="{% url 'measurement:meters' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">유속계 관리</a>
                 <a href="{% url 'measurement:rating_curve_list' %}" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100">H-Q 곡선</a>
