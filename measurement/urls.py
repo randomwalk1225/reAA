@@ -54,4 +54,7 @@ urlpatterns = [
     # 관측소 및 H-Q 곡선 API
     path('api/stations/search/', views.api_stations_search, name='api_stations_search'),
     path('api/stations/<int:station_id>/rating-curves/', views.api_rating_curves_by_station, name='api_rating_curves_by_station'),
+
+    # HRFCO API 연동
+    path('api/hrfco/discharge/', views.api_hrfco_discharge, name='api_hrfco_discharge'),
 ]

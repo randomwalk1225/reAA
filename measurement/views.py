@@ -882,7 +882,73 @@ def baseflow_list(request):
 
 def baseflow_new(request):
     """새 기저유출 분석"""
-    return render(request, 'measurement/baseflow_new.html')
+    from hydro.services import STATION_DATABASE
+
+    # HRFCO 관측소 목록 전달
+    return render(request, 'measurement/baseflow_new.html', {
+        'hrfco_stations': STATION_DATABASE,
+    })
+
+
+@require_GET
+def api_hrfco_discharge(request):
+    """HRFCO API에서 유량 데이터 가져오기"""
+    from hydro.services import get_waterlevel_history
+    from datetime import datetime, timedelta
+
+    station_code = request.GET.get('station_code')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if not station_code:
+        return JsonResponse({'error': '관측소 코드가 필요합니다.'}, status=400)
+
+    try:
+        # 기본 기간: 최근 1년
+        if not end_date:
+            end_dt = datetime.now()
+        else:
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+
+        if not start_date:
+            start_dt = end_dt - timedelta(days=365)
+        else:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+
+        # HRFCO API 호출
+        data = get_waterlevel_history(station_code, start_dt, end_dt)
+
+        # 일별 평균 유량으로 집계 (기저유출 분석용)
+        daily_data = {}
+        for item in data:
+            if item.get('fw') is not None:  # 유량 데이터가 있는 경우만
+                date_key = item['datetime'].strftime('%Y-%m-%d') if item.get('datetime') else None
+                if date_key:
+                    if date_key not in daily_data:
+                        daily_data[date_key] = []
+                    daily_data[date_key].append(item['fw'])
+
+        # 일평균 계산
+        discharge_series = []
+        dates = []
+        for date_key in sorted(daily_data.keys()):
+            values = daily_data[date_key]
+            avg_discharge = sum(values) / len(values)
+            dates.append(date_key)
+            discharge_series.append(round(avg_discharge, 4))
+
+        return JsonResponse({
+            'success': True,
+            'station_code': station_code,
+            'dates': dates,
+            'discharge': discharge_series,
+            'count': len(discharge_series),
+            'start_date': dates[0] if dates else None,
+            'end_date': dates[-1] if dates else None,
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def baseflow_detail(request, pk):

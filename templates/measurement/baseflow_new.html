@@ -29,6 +29,7 @@
             <span x-text="toast.message"></span>
         </div>
     </div>
+
     <!-- Header -->
     <div class="mb-6">
         <a href="{% url 'measurement:baseflow_list' %}" class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4">
@@ -47,15 +48,64 @@
             <div class="bg-white rounded-xl shadow-sm border p-6 lg:sticky lg:top-24">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">분석 설정</h2>
 
-                <!-- Station Selection -->
+                <!-- Station Selection with Search -->
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">관측소</label>
-                    <select x-model="stationId" @change="loadStationData()"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="">관측소 선택</option>
-                        <option value="1">경주 대종천 하류보</option>
-                        <option value="2">신태인 수위관측소</option>
-                    </select>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">관측소 (한강홍수통제소)</label>
+                    <div class="relative" @click.outside="showStationDropdown = false">
+                        <div class="relative">
+                            <input type="text"
+                                   x-model="stationSearch"
+                                   @focus="showStationDropdown = true; filterStations()"
+                                   @input="filterStations()"
+                                   @keydown.escape="showStationDropdown = false"
+                                   @keydown.arrow-down.prevent="navigateDropdown(1)"
+                                   @keydown.arrow-up.prevent="navigateDropdown(-1)"
+                                   @keydown.enter.prevent="selectHighlightedStation()"
+                                   :placeholder="selectedStation ? selectedStation.name : '관측소 검색...'"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 pr-10 text-sm">
+                            <button type="button"
+                                    @click="showStationDropdown = !showStationDropdown; if(showStationDropdown) filterStations()"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                                <svg class="w-5 h-5" :class="{'rotate-180': showStationDropdown}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Dropdown -->
+                        <div x-show="showStationDropdown"
+                             x-transition
+                             class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                            <template x-for="(station, index) in filteredStations" :key="station.code">
+                                <div @click="selectStation(station)"
+                                     :class="{'bg-gray-100': highlightedIndex === index}"
+                                     class="px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                                    <div class="font-medium text-sm text-gray-900" x-text="station.name"></div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="station.river"></span> ·
+                                        <span x-text="station.region"></span>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="filteredStations.length === 0" class="px-3 py-4 text-center text-gray-500 text-sm">
+                                검색 결과가 없습니다
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected station badge -->
+                    <div x-show="selectedStation" x-cloak class="mt-2">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                            <span x-text="selectedStation?.name"></span>
+                            <span class="mx-1">·</span>
+                            <span x-text="selectedStation?.river"></span>
+                            <button @click="clearStation()" class="ml-1 hover:text-blue-600">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Period -->
@@ -71,6 +121,34 @@
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                     </div>
                 </div>
+
+                <!-- Load Data Button -->
+                <button @click="loadStationData()"
+                        :disabled="!selectedStation || loadingData"
+                        class="w-full mb-4 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!loadingData">데이터 불러오기</span>
+                    <span x-show="loadingData" class="flex items-center justify-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        불러오는 중...
+                    </span>
+                </button>
+
+                <!-- Data Info -->
+                <div x-show="dischargeData.length > 0" x-cloak class="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
+                    <div class="flex justify-between text-gray-600">
+                        <span>데이터 기간:</span>
+                        <span class="font-medium" x-text="dataInfo.period"></span>
+                    </div>
+                    <div class="flex justify-between text-gray-600 mt-1">
+                        <span>데이터 수:</span>
+                        <span class="font-medium" x-text="dataInfo.count + '일'"></span>
+                    </div>
+                </div>
+
+                <hr class="my-4">
 
                 <!-- Method -->
                 <div class="mb-4">
@@ -121,7 +199,7 @@
 
                 <!-- Run Analysis Button -->
                 <button @click="runAnalysis()"
-                        :disabled="!stationId || analyzing"
+                        :disabled="dischargeData.length === 0 || analyzing"
                         class="w-full px-4 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
                     <span x-show="!analyzing">분석 실행</span>
                     <span x-show="analyzing" class="flex items-center justify-center">
@@ -163,7 +241,13 @@
             <!-- Chart -->
             <div class="bg-white rounded-xl shadow-sm border p-6 mb-6">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">기저유출 분리 그래프</h2>
-                <div class="relative w-full" style="height: 300px; min-height: 250px;">
+                <div x-show="dischargeData.length === 0" class="flex flex-col items-center justify-center py-12 text-gray-400">
+                    <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <p class="text-sm">관측소를 선택하고 데이터를 불러오세요</p>
+                </div>
+                <div x-show="dischargeData.length > 0" class="relative w-full" style="height: 300px; min-height: 250px;">
                     <canvas id="baseflowChart" class="w-full h-full"></canvas>
                 </div>
             </div>
@@ -183,63 +267,153 @@
 
 <script>
 function baseflowAnalysis() {
+    // HRFCO 관측소 목록
+    const hrfcoStations = [
+        {% for station in hrfco_stations %}
+        { code: '{{ station.code }}', name: '{{ station.name }}', river: '{{ station.river }}', region: '{{ station.region }}' },
+        {% endfor %}
+    ];
+
     return {
-        stationId: '',
-        startDate: '2024-05-01',
-        endDate: '2025-04-30',
+        // 관측소 관련
+        allStations: hrfcoStations,
+        filteredStations: [],
+        selectedStation: null,
+        stationSearch: '',
+        showStationDropdown: false,
+        highlightedIndex: -1,
+
+        // 기간
+        startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0],
+
+        // 분석 설정
         method: 'lyne_hollick',
         alpha: 0.925,
         bfiMax: 0.80,
+
+        // 상태
+        loadingData: false,
         analyzing: false,
-        loading: false,
         results: null,
         chart: null,
+
+        // 데이터
         dischargeData: [],
         baseflowData: [],
-        debounceTimer: null,
+        dateLabels: [],
+        dataInfo: { period: '', count: 0 },
+
+        // 토스트
         toast: { show: false, message: '', type: 'success' },
+        debounceTimer: null,
 
         init() {
-            // DOM 완전 로드 후 차트 초기화
+            this.filteredStations = [...this.allStations];
+
             this.$nextTick(() => {
                 setTimeout(() => this.initChart(), 50);
             });
 
-            // URL 파라미터에서 station 읽기
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('station')) {
-                this.stationId = params.get('station');
-                // 약간의 딜레이 후 로드 (DOM 안정화)
-                setTimeout(() => this.loadStationData(), 200);
-            }
-
-            // 화면 회전/리사이즈 시 차트 갱신
             window.addEventListener('resize', () => {
-                if (this.chart) {
-                    this.chart.resize();
-                }
+                if (this.chart) this.chart.resize();
             });
         },
 
-        loadStationData() {
-            if (!this.stationId || this.loading) return;
-            this.loading = true;
-
-            // 샘플 데이터 생성 (실제로는 API 호출)
-            const days = 365;
-            const data = [];
-            for (let i = 0; i < days; i++) {
-                // 계절 변동 + 랜덤 강우 이벤트
-                const seasonal = 0.5 + 0.3 * Math.sin(2 * Math.PI * i / 365);
-                const event = Math.random() < 0.1 ? Math.random() * 3 : 0;
-                data.push(Math.max(0.1, seasonal + event + (Math.random() - 0.5) * 0.2));
+        filterStations() {
+            const query = this.stationSearch.toLowerCase().trim();
+            if (!query) {
+                this.filteredStations = [...this.allStations];
+            } else {
+                this.filteredStations = this.allStations.filter(s =>
+                    s.name.toLowerCase().includes(query) ||
+                    s.river.toLowerCase().includes(query) ||
+                    s.region.toLowerCase().includes(query) ||
+                    s.code.includes(query)
+                );
             }
-            // 배열 한 번에 할당 (반응성 최소화)
-            this.dischargeData = data;
-            this.loading = false;
+            this.highlightedIndex = -1;
+        },
 
-            // 디바운스된 분석 실행
-            this.debouncedRunAnalysis();
+        navigateDropdown(direction) {
+            if (!this.showStationDropdown) {
+                this.showStationDropdown = true;
+                return;
+            }
+            const max = this.filteredStations.length - 1;
+            this.highlightedIndex += direction;
+            if (this.highlightedIndex > max) this.highlightedIndex = 0;
+            if (this.highlightedIndex < 0) this.highlightedIndex = max;
+        },
+
+        selectHighlightedStation() {
+            if (this.highlightedIndex >= 0 && this.filteredStations[this.highlightedIndex]) {
+                this.selectStation(this.filteredStations[this.highlightedIndex]);
+            }
+        },
+
+        selectStation(station) {
+            this.selectedStation = station;
+            this.stationSearch = '';
+            this.showStationDropdown = false;
+            this.highlightedIndex = -1;
+        },
+
+        clearStation() {
+            this.selectedStation = null;
+            this.dischargeData = [];
+            this.baseflowData = [];
+            this.results = null;
+            this.dataInfo = { period: '', count: 0 };
+            if (this.chart) {
+                this.chart.data.labels = [];
+                this.chart.data.datasets[0].data = [];
+                this.chart.data.datasets[1].data = [];
+                this.chart.update();
+            }
+        },
+
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => this.toast.show = false, 1500);
+        },
+
+        async loadStationData() {
+            if (!this.selectedStation || this.loadingData) return;
+
+            this.loadingData = true;
+            this.results = null;
+
+            try {
+                const params = new URLSearchParams({
+                    station_code: this.selectedStation.code,
+                    start_date: this.startDate,
+                    end_date: this.endDate
+                });
+
+                const response = await fetch(`{% url "measurement:api_hrfco_discharge" %}?${params}`);
+                const data = await response.json();
+
+                if (data.success && data.discharge.length > 0) {
+                    this.dischargeData = data.discharge;
+                    this.dateLabels = data.dates;
+                    this.dataInfo = {
+                        period: `${data.start_date} ~ ${data.end_date}`,
+                        count: data.count
+                    };
+
+                    // 차트 초기 표시 (유량만)
+                    this.updateChartData();
+                    this.showToast(`${data.count}일 데이터를 불러왔습니다`);
+                } else {
+                    this.showToast('유량 데이터가 없습니다. 다른 관측소를 선택하세요.', 'error');
+                    this.dischargeData = [];
+                }
+            } catch (error) {
+                this.showToast('데이터 로드 실패: ' + error.message, 'error');
+            } finally {
+                this.loadingData = false;
+            }
         },
 
         debouncedRunAnalysis() {
@@ -247,95 +421,82 @@ function baseflowAnalysis() {
             this.debounceTimer = setTimeout(() => this.runAnalysis(), 150);
         },
 
-        showToast(message, type = 'success') {
-            this.toast = { show: true, message, type };
-            setTimeout(() => {
-                this.toast.show = false;
-            }, 1500);
-        },
-
         initChart() {
             const canvas = document.getElementById('baseflowChart');
-            if (!canvas) {
-                console.error('Chart canvas not found');
-                return;
-            }
+            if (!canvas) return;
+
             const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                console.error('Cannot get 2d context');
-                return;
-            }
+            if (!ctx) return;
 
             try {
                 this.chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: '총유량 (m³/s)',
-                            data: [],
-                            borderColor: 'rgb(59, 130, 246)',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            fill: true,
-                            tension: 0.1,
-                            pointRadius: 0,
-                        },
-                        {
-                            label: '기저유출 (m³/s)',
-                            data: [],
-                            borderColor: 'rgb(16, 185, 129)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.3)',
-                            fill: true,
-                            tension: 0.1,
-                            pointRadius: 0,
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        }
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: '일수'
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: '총유량 (m³/s)',
+                                data: [],
+                                borderColor: 'rgb(59, 130, 246)',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0,
                             },
-                            ticks: {
-                                maxTicksLimit: 12
+                            {
+                                label: '기저유출 (m³/s)',
+                                data: [],
+                                borderColor: 'rgb(16, 185, 129)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.3)',
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0,
                             }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
                         },
-                        y: {
-                            display: true,
-                            title: {
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            x: {
                                 display: true,
-                                text: '유량 (m³/s)'
+                                title: { display: true, text: '날짜' },
+                                ticks: { maxTicksLimit: 12 }
                             },
-                            min: 0
+                            y: {
+                                display: true,
+                                title: { display: true, text: '유량 (m³/s)' },
+                                min: 0
+                            }
                         }
                     }
-                }
-            });
+                });
             } catch (e) {
                 console.error('Chart init failed:', e);
-                this.chart = null;
             }
         },
 
+        updateChartData() {
+            if (!this.chart) {
+                this.initChart();
+                if (!this.chart) return;
+            }
+
+            this.chart.data.labels = this.dateLabels;
+            this.chart.data.datasets[0].data = this.dischargeData;
+            this.chart.data.datasets[1].data = this.baseflowData;
+            this.chart.update();
+        },
+
         async runAnalysis() {
-            // 이미 분석 중이면 중복 실행 방지
-            if (this.analyzing) return;
-            if (!this.stationId || this.dischargeData.length === 0) return;
+            if (this.analyzing || this.dischargeData.length === 0) return;
 
             this.analyzing = true;
 
@@ -359,72 +520,41 @@ function baseflowAnalysis() {
                 if (result.success) {
                     this.results = result.statistics;
                     this.baseflowData = result.baseflow;
-                    this.updateChart();
+                    this.updateChartData();
                 } else {
-                    alert('분석 오류: ' + result.error);
+                    this.showToast('분석 오류: ' + result.error, 'error');
                 }
             } catch (error) {
-                alert('분석 중 오류 발생: ' + error.message);
+                this.showToast('분석 중 오류 발생: ' + error.message, 'error');
             } finally {
                 this.analyzing = false;
-            }
-        },
-
-        updateChart() {
-            if (!this.chart) {
-                // 차트가 없으면 다시 초기화 시도
-                this.initChart();
-                if (!this.chart) return;
-            }
-
-            try {
-                // 라벨 생성
-                const labels = this.dischargeData.map((_, i) => i + 1);
-
-                this.chart.data.labels = labels;
-                this.chart.data.datasets[0].data = this.dischargeData;
-                this.chart.data.datasets[1].data = this.baseflowData;
-                this.chart.update();  // 기본 애니메이션으로 즉시 렌더링
-            } catch (e) {
-                console.error('Chart update failed:', e);
             }
         },
 
         exportResults() {
             if (!this.results) return;
 
-            let content = 'day,total_discharge,baseflow,direct_runoff\n';
+            let content = 'date,total_discharge,baseflow,direct_runoff\n';
             for (let i = 0; i < this.dischargeData.length; i++) {
                 const direct = this.dischargeData[i] - this.baseflowData[i];
-                content += `${i + 1},${this.dischargeData[i].toFixed(4)},${this.baseflowData[i].toFixed(4)},${direct.toFixed(4)}\n`;
+                content += `${this.dateLabels[i]},${this.dischargeData[i].toFixed(4)},${this.baseflowData[i].toFixed(4)},${direct.toFixed(4)}\n`;
             }
 
             const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'baseflow_analysis.csv';
+            a.download = `baseflow_${this.selectedStation?.name || 'analysis'}.csv`;
             a.click();
         },
 
         async saveAnalysis() {
-            if (!this.results) return;
+            if (!this.results || !this.selectedStation) return;
 
-            // 관측소 이름 가져오기
-            const stationSelect = document.querySelector('select[x-model="stationId"]');
-            const stationName = stationSelect.options[stationSelect.selectedIndex]?.text || '';
-
-            // 일별 데이터 생성
             const dailyData = [];
-            const startDate = new Date(this.startDate);
-
             for (let i = 0; i < this.dischargeData.length; i++) {
-                const date = new Date(startDate);
-                date.setDate(startDate.getDate() + i);
-                const dateStr = date.toISOString().split('T')[0];
-
                 dailyData.push({
-                    date: dateStr,
+                    date: this.dateLabels[i],
                     total: this.dischargeData[i],
                     baseflow: this.baseflowData[i],
                     direct: this.dischargeData[i] - this.baseflowData[i]
@@ -439,13 +569,12 @@ function baseflowAnalysis() {
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
                     body: JSON.stringify({
-                        station_id: this.stationId,
-                        station_name: stationName,
+                        station_name: this.selectedStation.name,
                         method: this.method,
                         alpha: parseFloat(this.alpha),
                         bfi_max: this.method === 'eckhardt' ? parseFloat(this.bfiMax) : null,
-                        start_date: this.startDate,
-                        end_date: this.endDate,
+                        start_date: this.dateLabels[0],
+                        end_date: this.dateLabels[this.dateLabels.length - 1],
                         statistics: this.results,
                         daily_data: dailyData
                     })

@@ -55,6 +55,9 @@ nul
 *.md
 !README.md
 !DEPLOYMENT.md
+!CLAUDE.md
+!docs/APP_ROADMAP.md
+!docs/DATA_FLOW_ISSUE_REPORT.md
 공부용자료/
 webapp/
 
