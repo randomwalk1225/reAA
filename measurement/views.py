@@ -1531,3 +1531,23 @@ def api_measurement_delete(request, session_id):
 
     except MeasurementSession.DoesNotExist:
         return JsonResponse({'error': '세션을 찾을 수 없습니다.'}, status=404)
+
+
+def api_create_mock_data(request):
+    """개발용: 모의 데이터 생성 API"""
+    from django.core.management import call_command
+    from io import StringIO
+
+    try:
+        out = StringIO()
+        clean = request.GET.get('clean', '').lower() == 'true'
+        call_command('create_mock_data', clean=clean, stdout=out)
+        output = out.getvalue()
+
+        return JsonResponse({
+            'success': True,
+            'message': '모의 데이터 생성 완료',
+            'output': output,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
