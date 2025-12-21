@@ -1224,22 +1224,114 @@ function dataInputGrid() {
         },
 
         loadTestCSV() {
-            // 테스트 CSV 데이터 (경주 대종천 샘플)
-            const testData = [
-                { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                { distance: 1.50, depth: 0.32, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
-                { distance: 3.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 112, t_06d: 60, n_08d: null, t_08d: null },
-                { distance: 4.50, depth: 0.85, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
-                { distance: 6.00, depth: 1.12, method: '3', n_02d: 125, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
-                { distance: 7.50, depth: 1.35, method: '3', n_02d: 142, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
-                { distance: 9.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 112, t_06d: 60, n_08d: 94, t_08d: 60 },
-                { distance: 10.50, depth: 0.95, method: '2', n_02d: 108, t_02d: 60, n_06d: null, t_06d: null, n_08d: 85, t_08d: 60 },
-                { distance: 12.00, depth: 0.62, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
-                { distance: 13.50, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
-                { distance: 15.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+            // 6개의 테스트 데이터 세트
+            const testDataSets = [
+                // 1. 경주 대종천 - 중규모 하천 (15m 폭, 최대 1.35m 수심)
+                {
+                    name: '경주 대종천',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 1.50, depth: 0.32, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 3.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 112, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 4.50, depth: 0.85, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
+                        { distance: 6.00, depth: 1.12, method: '3', n_02d: 125, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
+                        { distance: 7.50, depth: 1.35, method: '3', n_02d: 142, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
+                        { distance: 9.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 112, t_06d: 60, n_08d: 94, t_08d: 60 },
+                        { distance: 10.50, depth: 0.95, method: '2', n_02d: 108, t_02d: 60, n_06d: null, t_06d: null, n_08d: 85, t_08d: 60 },
+                        { distance: 12.00, depth: 0.62, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 13.50, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 15.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
+                // 2. 신태인 동진강 - 대규모 하천 (25m 폭, 최대 2.1m 수심)
+                {
+                    name: '신태인 동진강',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 2.50, depth: 0.45, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 5.00, depth: 0.92, method: '2', n_02d: 115, t_02d: 60, n_06d: null, t_06d: null, n_08d: 88, t_08d: 60 },
+                        { distance: 7.50, depth: 1.45, method: '3', n_02d: 145, t_02d: 60, n_06d: 125, t_06d: 60, n_08d: 105, t_08d: 60 },
+                        { distance: 10.00, depth: 1.85, method: '3', n_02d: 168, t_02d: 60, n_06d: 142, t_06d: 60, n_08d: 118, t_08d: 60 },
+                        { distance: 12.50, depth: 2.10, method: '3', n_02d: 185, t_02d: 60, n_06d: 158, t_06d: 60, n_08d: 132, t_08d: 60 },
+                        { distance: 15.00, depth: 1.95, method: '3', n_02d: 172, t_02d: 60, n_06d: 148, t_06d: 60, n_08d: 125, t_08d: 60 },
+                        { distance: 17.50, depth: 1.52, method: '3', n_02d: 152, t_02d: 60, n_06d: 128, t_06d: 60, n_08d: 108, t_08d: 60 },
+                        { distance: 20.00, depth: 0.98, method: '2', n_02d: 118, t_02d: 60, n_06d: null, t_06d: null, n_08d: 92, t_08d: 60 },
+                        { distance: 22.50, depth: 0.52, method: '1', n_02d: null, t_02d: null, n_06d: 78, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 25.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
+                // 3. 평림천 - 소규모 하천 (8m 폭, 최대 0.65m 수심)
+                {
+                    name: '평림천',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 1.00, depth: 0.18, method: '1', n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 2.00, depth: 0.35, method: '1', n_02d: null, t_02d: null, n_06d: 68, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 3.00, depth: 0.52, method: '1', n_02d: null, t_02d: null, n_06d: 82, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 4.00, depth: 0.65, method: '2', n_02d: 92, t_02d: 60, n_06d: null, t_06d: null, n_08d: 72, t_08d: 60 },
+                        { distance: 5.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 78, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 6.00, depth: 0.42, method: '1', n_02d: null, t_02d: null, n_06d: 62, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 7.00, depth: 0.22, method: '1', n_02d: null, t_02d: null, n_06d: 38, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 8.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
+                // 4. 낙동강 구미 - 대규모 하천 (45m 폭, 최대 3.2m 수심)
+                {
+                    name: '낙동강 구미',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 5.00, depth: 0.85, method: '2', n_02d: 105, t_02d: 60, n_06d: null, t_06d: null, n_08d: 82, t_08d: 60 },
+                        { distance: 10.00, depth: 1.65, method: '3', n_02d: 155, t_02d: 60, n_06d: 132, t_06d: 60, n_08d: 112, t_08d: 60 },
+                        { distance: 15.00, depth: 2.45, method: '3', n_02d: 195, t_02d: 60, n_06d: 168, t_06d: 60, n_08d: 142, t_08d: 60 },
+                        { distance: 20.00, depth: 3.05, method: '3', n_02d: 225, t_02d: 60, n_06d: 192, t_06d: 60, n_08d: 165, t_08d: 60 },
+                        { distance: 25.00, depth: 3.20, method: '3', n_02d: 238, t_02d: 60, n_06d: 205, t_06d: 60, n_08d: 175, t_08d: 60 },
+                        { distance: 30.00, depth: 2.85, method: '3', n_02d: 212, t_02d: 60, n_06d: 182, t_06d: 60, n_08d: 155, t_08d: 60 },
+                        { distance: 35.00, depth: 2.15, method: '3', n_02d: 178, t_02d: 60, n_06d: 152, t_06d: 60, n_08d: 128, t_08d: 60 },
+                        { distance: 40.00, depth: 1.25, method: '3', n_02d: 135, t_02d: 60, n_06d: 115, t_06d: 60, n_08d: 95, t_08d: 60 },
+                        { distance: 45.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
+                // 5. 한강 팔당 - 대규모 하천 (35m 폭, 최대 2.8m 수심, 빠른 유속)
+                {
+                    name: '한강 팔당',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 3.50, depth: 0.72, method: '2', n_02d: 125, t_02d: 60, n_06d: null, t_06d: null, n_08d: 98, t_08d: 60 },
+                        { distance: 7.00, depth: 1.45, method: '3', n_02d: 175, t_02d: 60, n_06d: 148, t_06d: 60, n_08d: 125, t_08d: 60 },
+                        { distance: 10.50, depth: 2.15, method: '3', n_02d: 215, t_02d: 60, n_06d: 185, t_06d: 60, n_08d: 158, t_08d: 60 },
+                        { distance: 14.00, depth: 2.65, method: '3', n_02d: 248, t_02d: 60, n_06d: 215, t_06d: 60, n_08d: 185, t_08d: 60 },
+                        { distance: 17.50, depth: 2.80, method: '3', n_02d: 262, t_02d: 60, n_06d: 228, t_06d: 60, n_08d: 195, t_08d: 60 },
+                        { distance: 21.00, depth: 2.55, method: '3', n_02d: 242, t_02d: 60, n_06d: 208, t_06d: 60, n_08d: 178, t_08d: 60 },
+                        { distance: 24.50, depth: 1.85, method: '3', n_02d: 195, t_02d: 60, n_06d: 168, t_06d: 60, n_08d: 142, t_08d: 60 },
+                        { distance: 28.00, depth: 1.15, method: '3', n_02d: 148, t_02d: 60, n_06d: 125, t_06d: 60, n_08d: 105, t_08d: 60 },
+                        { distance: 31.50, depth: 0.55, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 35.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
+                // 6. 금강 공주 - 중규모 하천 (20m 폭, 최대 1.8m 수심)
+                {
+                    name: '금강 공주',
+                    data: [
+                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                        { distance: 2.00, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 4.00, depth: 0.78, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
+                        { distance: 6.00, depth: 1.18, method: '3', n_02d: 128, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
+                        { distance: 8.00, depth: 1.52, method: '3', n_02d: 152, t_02d: 60, n_06d: 128, t_06d: 60, n_08d: 108, t_08d: 60 },
+                        { distance: 10.00, depth: 1.80, method: '3', n_02d: 172, t_02d: 60, n_06d: 145, t_06d: 60, n_08d: 122, t_08d: 60 },
+                        { distance: 12.00, depth: 1.65, method: '3', n_02d: 162, t_02d: 60, n_06d: 138, t_06d: 60, n_08d: 115, t_08d: 60 },
+                        { distance: 14.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
+                        { distance: 16.00, depth: 0.85, method: '2', n_02d: 105, t_02d: 60, n_06d: null, t_06d: null, n_08d: 82, t_08d: 60 },
+                        { distance: 18.00, depth: 0.42, method: '1', n_02d: null, t_02d: null, n_06d: 65, t_06d: 60, n_08d: null, t_08d: null },
+                        { distance: 20.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                    ]
+                },
             ];
 
-            this.rows = testData.map((row, index) => ({
+            // 무작위로 하나 선택
+            const randomIndex = Math.floor(Math.random() * testDataSets.length);
+            const selected = testDataSets[randomIndex];
+
+            this.rows = selected.data.map((row, index) => ({
                 id: index + 1,
                 ...row,
                 velocity: 0
@@ -1247,7 +1339,7 @@ function dataInputGrid() {
 
             // 기존 관측소명이 없을 때만 테스트용으로 설정
             if (!this.stationName) {
-                this.stationName = '경주 대종천 (테스트)';
+                this.stationName = `${selected.name} (테스트)`;
             }
             if (!this.measurementDate) {
                 this.measurementDate = new Date().toISOString().split('T')[0];
