@@ -60,6 +60,9 @@ urlpatterns = [
     # HRFCO API 연동
     path('api/hrfco/discharge/', views.api_hrfco_discharge, name='api_hrfco_discharge'),
 
+    # 내부 관측소 유량 API
+    path('api/internal/discharge/', views.api_internal_discharge, name='api_internal_discharge'),
+
     # 개발용: 모의 데이터 생성
     path('api/dev/create-mock-data/', views.api_create_mock_data, name='api_create_mock_data'),
 ]

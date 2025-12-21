@@ -1122,10 +1122,28 @@ def baseflow_list(request):
 def baseflow_new(request):
     """새 기저유출 분석"""
     from hydro.services import STATION_DATABASE
+    from .models import Station
 
-    # HRFCO 관측소 목록 전달
+    # URL 파라미터에서 내부 관측소 ID 확인
+    internal_station_id = request.GET.get('station')
+    internal_station = None
+
+    if internal_station_id:
+        try:
+            internal_station = Station.objects.get(pk=internal_station_id)
+        except Station.DoesNotExist:
+            pass
+
+    # 내부 관측소 목록 (시계열 데이터가 있는 것만)
+    from .models import WaterLevelTimeSeries
+    internal_stations = Station.objects.filter(
+        pk__in=WaterLevelTimeSeries.objects.values('station_id').distinct()
+    )
+
     return render(request, 'measurement/baseflow_new.html', {
         'hrfco_stations': STATION_DATABASE,
+        'internal_stations': internal_stations,
+        'selected_internal_station': internal_station,
     })
 
 
@@ -1186,6 +1204,89 @@ def api_hrfco_discharge(request):
             'end_date': dates[-1] if dates else None,
         })
 
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_GET
+def api_internal_discharge(request):
+    """내부 관측소(WaterLevelTimeSeries)에서 유량 데이터 가져오기"""
+    from .models import Station, WaterLevelTimeSeries, RatingCurve
+    from django.db.models import Avg
+    from django.db.models.functions import TruncDate
+
+    station_id = request.GET.get('station_id')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if not station_id:
+        return JsonResponse({'error': '관측소 ID가 필요합니다.'}, status=400)
+
+    try:
+        station = Station.objects.get(pk=station_id)
+
+        # Rating Curve 조회 (가장 최신)
+        rating_curve = RatingCurve.objects.filter(station=station).order_by('-year').first()
+        if not rating_curve:
+            return JsonResponse({'error': '해당 관측소에 Rating Curve가 없습니다.'}, status=400)
+
+        # 기간 설정
+        from datetime import datetime, timedelta
+        if not end_date:
+            end_dt = datetime.now()
+        else:
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+
+        if not start_date:
+            start_dt = end_dt - timedelta(days=365)
+        else:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+
+        # 수위 시계열 조회 (일평균)
+        from django.utils import timezone
+        start_aware = timezone.make_aware(start_dt) if timezone.is_naive(start_dt) else start_dt
+        end_aware = timezone.make_aware(end_dt) if timezone.is_naive(end_dt) else end_dt
+
+        daily_stages = WaterLevelTimeSeries.objects.filter(
+            station=station,
+            timestamp__gte=start_aware,
+            timestamp__lte=end_aware,
+            quality_flag='good'
+        ).annotate(
+            date=TruncDate('timestamp')
+        ).values('date').annotate(
+            avg_stage=Avg('stage')
+        ).order_by('date')
+
+        # 수위 → 유량 변환 (Rating Curve 적용)
+        dates = []
+        discharge_series = []
+        a, b, h0 = rating_curve.coef_a, rating_curve.coef_b, rating_curve.coef_h0
+
+        for item in daily_stages:
+            h_diff = item['avg_stage'] - h0
+            if h_diff > 0:
+                discharge = a * (h_diff ** b)
+            else:
+                discharge = 0
+
+            dates.append(item['date'].strftime('%Y-%m-%d'))
+            discharge_series.append(round(discharge, 4))
+
+        return JsonResponse({
+            'success': True,
+            'station_id': station_id,
+            'station_name': station.name,
+            'rating_curve': f"Q = {a}(h - {h0})^{b}",
+            'dates': dates,
+            'discharge': discharge_series,
+            'count': len(discharge_series),
+            'start_date': dates[0] if dates else None,
+            'end_date': dates[-1] if dates else None,
+        })
+
+    except Station.DoesNotExist:
+        return JsonResponse({'error': '관측소를 찾을 수 없습니다.'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

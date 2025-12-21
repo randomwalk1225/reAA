@@ -48,8 +48,47 @@
             <div class="bg-white rounded-xl shadow-sm border p-6 lg:sticky lg:top-24">
                 <h2 class="text-lg font-semibold text-gray-900 mb-4">분석 설정</h2>
 
-                <!-- Station Selection with Search -->
+                <!-- Data Source Toggle -->
                 <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">데이터 소스</label>
+                    <div class="flex rounded-lg border border-gray-300 overflow-hidden">
+                        <button type="button"
+                                @click="dataSource = 'internal'"
+                                :class="dataSource === 'internal' ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                                class="flex-1 px-3 py-2 text-sm font-medium transition-colors">
+                            내부 관측소
+                        </button>
+                        <button type="button"
+                                @click="dataSource = 'hrfco'"
+                                :class="dataSource === 'hrfco' ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                                class="flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-gray-300">
+                            HRFCO API
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Internal Station Selection -->
+                <div class="mb-4" x-show="dataSource === 'internal'" x-cloak>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">내부 관측소</label>
+                    <select x-model="selectedInternalStationId"
+                            @change="selectInternalStation()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
+                        <option value="">관측소 선택...</option>
+                        {% for station in internal_stations %}
+                        <option value="{{ station.id }}">{{ station.name }} ({{ station.river_name }})</option>
+                        {% endfor %}
+                    </select>
+                    <div x-show="selectedInternalStation" x-cloak class="mt-2">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800">
+                            <span x-text="selectedInternalStation?.name"></span>
+                            <span class="mx-1">·</span>
+                            <span x-text="selectedInternalStation?.river"></span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- HRFCO Station Selection with Search -->
+                <div class="mb-4" x-show="dataSource === 'hrfco'" x-cloak>
                     <label class="block text-sm font-medium text-gray-700 mb-2">관측소 (한강홍수통제소)</label>
                     <div class="relative" @click.outside="showStationDropdown = false">
                         <div class="relative">
@@ -124,7 +163,7 @@
 
                 <!-- Load Data Button -->
                 <button @click="loadStationData()"
-                        :disabled="!selectedStation || loadingData"
+                        :disabled="(dataSource === 'hrfco' && !selectedStation) || (dataSource === 'internal' && !selectedInternalStationId) || loadingData"
                         class="w-full mb-4 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                     <span x-show="!loadingData">데이터 불러오기</span>
                     <span x-show="loadingData" class="flex items-center justify-center">
@@ -274,8 +313,26 @@ function baseflowAnalysis() {
         {% endfor %}
     ];
 
+    // 내부 관측소 목록
+    const internalStations = {
+        {% for station in internal_stations %}
+        '{{ station.id }}': { id: {{ station.id }}, name: '{{ station.name }}', river: '{{ station.river_name }}' },
+        {% endfor %}
+    };
+
+    // URL에서 자동 선택된 관측소
+    const preselectedStationId = '{{ selected_internal_station.id|default:"" }}';
+
     return {
-        // 관측소 관련
+        // 데이터 소스 (internal / hrfco)
+        dataSource: preselectedStationId ? 'internal' : 'internal',
+
+        // 내부 관측소 관련
+        internalStations: internalStations,
+        selectedInternalStationId: preselectedStationId,
+        selectedInternalStation: preselectedStationId ? internalStations[preselectedStationId] : null,
+
+        // HRFCO 관측소 관련
         allStations: hrfcoStations,
         filteredStations: [],
         selectedStation: null,
@@ -308,8 +365,23 @@ function baseflowAnalysis() {
         toast: { show: false, message: '', type: 'success' },
         debounceTimer: null,
 
+        selectInternalStation() {
+            if (this.selectedInternalStationId) {
+                this.selectedInternalStation = this.internalStations[this.selectedInternalStationId];
+            } else {
+                this.selectedInternalStation = null;
+            }
+        },
+
         init() {
             this.filteredStations = [...this.allStations];
+
+            // 자동 선택된 관측소가 있으면 데이터 자동 로드
+            if (this.selectedInternalStationId && this.selectedInternalStation) {
+                this.$nextTick(() => {
+                    setTimeout(() => this.loadStationData(), 100);
+                });
+            }
 
             this.$nextTick(() => {
                 setTimeout(() => this.initChart(), 50);
@@ -379,19 +451,36 @@ function baseflowAnalysis() {
         },
 
         async loadStationData() {
-            if (!this.selectedStation || this.loadingData) return;
+            // 데이터 소스에 따른 유효성 검사
+            if (this.dataSource === 'hrfco' && !this.selectedStation) return;
+            if (this.dataSource === 'internal' && !this.selectedInternalStationId) return;
+            if (this.loadingData) return;
 
             this.loadingData = true;
             this.results = null;
 
             try {
-                const params = new URLSearchParams({
-                    station_code: this.selectedStation.code,
-                    start_date: this.startDate,
-                    end_date: this.endDate
-                });
+                let url, params;
 
-                const response = await fetch(`{% url "measurement:api_hrfco_discharge" %}?${params}`);
+                if (this.dataSource === 'internal') {
+                    // 내부 관측소 데이터 (WaterLevelTimeSeries + RatingCurve)
+                    params = new URLSearchParams({
+                        station_id: this.selectedInternalStationId,
+                        start_date: this.startDate,
+                        end_date: this.endDate
+                    });
+                    url = `{% url "measurement:api_internal_discharge" %}?${params}`;
+                } else {
+                    // HRFCO API
+                    params = new URLSearchParams({
+                        station_code: this.selectedStation.code,
+                        start_date: this.startDate,
+                        end_date: this.endDate
+                    });
+                    url = `{% url "measurement:api_hrfco_discharge" %}?${params}`;
+                }
+
+                const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.success && data.discharge.length > 0) {
@@ -406,7 +495,8 @@ function baseflowAnalysis() {
                     this.updateChartData();
                     this.showToast(`${data.count}일 데이터를 불러왔습니다`);
                 } else {
-                    this.showToast('유량 데이터가 없습니다. 다른 관측소를 선택하세요.', 'error');
+                    const errorMsg = data.error || '유량 데이터가 없습니다. 다른 관측소를 선택하세요.';
+                    this.showToast(errorMsg, 'error');
                     this.dischargeData = [];
                 }
             } catch (error) {

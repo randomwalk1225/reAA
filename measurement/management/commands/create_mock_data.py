@@ -38,11 +38,13 @@ class Command(BaseCommand):
 
         self.stdout.write('모의 데이터 생성 시작...')
 
-        # 1. 관측소 생성
+        # 1. 관측소 생성 (5개 - 2개 추가)
         stations_data = [
             {'name': f'{MOCK_PREFIX} 경주 대종천', 'river_name': '대종천', 'dm_number': 'DM-TEST-001'},
             {'name': f'{MOCK_PREFIX} 신태인', 'river_name': '동진강', 'dm_number': 'DM-TEST-002'},
             {'name': f'{MOCK_PREFIX} 평림천', 'river_name': '평림천', 'dm_number': 'DM-TEST-003'},
+            {'name': f'{MOCK_PREFIX} 한강 청평', 'river_name': '한강', 'dm_number': 'DM-TEST-004'},
+            {'name': f'{MOCK_PREFIX} 낙동강 달성', 'river_name': '낙동강', 'dm_number': 'DM-TEST-005'},
         ]
 
         stations = []
@@ -89,6 +91,24 @@ class Command(BaseCommand):
                 'coef_a': 5.123, 'coef_b': 1.756, 'coef_h0': 0.05,
                 'r_squared': 0.962,
             },
+            # 한강 청평 (추가)
+            {
+                'station': stations[3],
+                'year': 2024,
+                'curve_type': 'open',
+                'h_min': 1.50, 'h_max': 8.50,
+                'coef_a': 45.832, 'coef_b': 2.125, 'coef_h0': 0.85,
+                'r_squared': 0.991,
+            },
+            # 낙동강 달성 (추가)
+            {
+                'station': stations[4],
+                'year': 2024,
+                'curve_type': 'open',
+                'h_min': 2.00, 'h_max': 12.00,
+                'coef_a': 85.456, 'coef_b': 1.892, 'coef_h0': 1.25,
+                'r_squared': 0.988,
+            },
         ]
 
         rating_curves = []
@@ -132,6 +152,20 @@ class Command(BaseCommand):
                 {'date': '2024-05-15', 'h': 0.45, 'q': 0.65},
                 {'date': '2024-07-20', 'h': 0.85, 'q': 2.35},
                 {'date': '2024-09-10', 'h': 1.20, 'q': 5.12},
+            ],
+            # 한강 청평 (추가)
+            [
+                {'date': '2024-03-10', 'h': 1.85, 'q': 125.5},
+                {'date': '2024-05-20', 'h': 3.25, 'q': 485.2},
+                {'date': '2024-07-15', 'h': 5.80, 'q': 1520.8},
+                {'date': '2024-09-05', 'h': 8.20, 'q': 3250.5},
+            ],
+            # 낙동강 달성 (추가)
+            [
+                {'date': '2024-04-05', 'h': 2.50, 'q': 215.8},
+                {'date': '2024-06-12', 'h': 4.80, 'q': 850.5},
+                {'date': '2024-08-25', 'h': 8.50, 'q': 2850.2},
+                {'date': '2024-10-10', 'h': 11.50, 'q': 5420.8},
             ],
         ]
 
@@ -233,25 +267,74 @@ class Command(BaseCommand):
             action = '생성' if created else '이미 존재'
             self.stdout.write(f"  측정세션: {session.station_name} ({action})")
 
-        # 5. 수위 시계열 생성 (최근 7일)
+        # 5. 수위 시계열 생성 (2년간 시간별 데이터 - 약 17,500개/관측소)
+        import math
         base_time = timezone.now().replace(minute=0, second=0, microsecond=0)
-        for station in stations[:2]:  # 처음 2개 관측소만
-            existing = WaterLevelTimeSeries.objects.filter(station=station).exists()
-            if not existing:
-                for hour in range(7 * 24):  # 7일 x 24시간
-                    timestamp = base_time - timedelta(hours=hour)
-                    # 일변동 + 랜덤 변동
-                    base_stage = 0.35 + 0.1 * ((hour % 24) / 24)
-                    stage = base_stage + random.uniform(-0.03, 0.03)
-                    WaterLevelTimeSeries.objects.create(
-                        station=station,
-                        timestamp=timestamp,
-                        stage=round(stage, 3),
-                        quality_flag='good'
-                    )
-                self.stdout.write(f"  수위시계열: {station.name} - 168개 (7일)")
-            else:
-                self.stdout.write(f"  수위시계열: {station.name} (이미 존재)")
+        days_to_generate = 365 * 2  # 2년
+
+        # 관측소별 기본 수위 특성 (base_stage, amplitude, seasonal_amplitude)
+        station_characteristics = {
+            0: (0.35, 0.10, 0.15),   # 경주 대종천 - 소하천
+            1: (1.20, 0.30, 0.50),   # 신태인 - 중규모
+            2: (0.25, 0.08, 0.12),   # 평림천 - 소하천
+            3: (3.50, 0.80, 1.50),   # 한강 청평 - 대하천
+            4: (4.20, 1.00, 2.00),   # 낙동강 달성 - 대하천
+        }
+
+        for idx, station in enumerate(stations):
+            existing_count = WaterLevelTimeSeries.objects.filter(station=station).count()
+            if existing_count >= days_to_generate * 24 * 0.9:  # 90% 이상 있으면 스킵
+                self.stdout.write(f"  수위시계열: {station.name} (이미 존재 - {existing_count}개)")
+                continue
+
+            base_stage, amplitude, seasonal_amp = station_characteristics.get(idx, (0.5, 0.15, 0.20))
+            records = []
+
+            for hour in range(days_to_generate * 24):
+                timestamp = base_time - timedelta(hours=hour)
+                day_of_year = timestamp.timetuple().tm_yday
+
+                # 계절 변동 (여름 장마철 높음)
+                seasonal = seasonal_amp * math.sin(2 * math.pi * (day_of_year - 90) / 365)
+
+                # 일변동 (낮에 약간 높음)
+                daily = amplitude * 0.3 * math.sin(2 * math.pi * (hour % 24) / 24)
+
+                # 홍수 이벤트 (랜덤하게 발생, 여름에 더 빈번)
+                flood_prob = 0.002 if 150 < day_of_year < 250 else 0.0005
+                flood = 0
+                if random.random() < flood_prob:
+                    flood = random.uniform(amplitude * 2, amplitude * 5)
+
+                # 최종 수위
+                stage = base_stage + seasonal + daily + flood + random.uniform(-amplitude * 0.2, amplitude * 0.2)
+                stage = max(0.01, stage)  # 음수 방지
+
+                # 품질 플래그
+                quality = 'good'
+                if random.random() < 0.01:  # 1% 결측
+                    quality = 'missing'
+                elif random.random() < 0.02:  # 2% 의심
+                    quality = 'suspect'
+
+                records.append(WaterLevelTimeSeries(
+                    station=station,
+                    timestamp=timestamp,
+                    stage=round(stage, 3),
+                    quality_flag=quality
+                ))
+
+                # 배치 저장 (메모리 관리)
+                if len(records) >= 5000:
+                    WaterLevelTimeSeries.objects.bulk_create(records, ignore_conflicts=True)
+                    records = []
+
+            # 남은 레코드 저장
+            if records:
+                WaterLevelTimeSeries.objects.bulk_create(records, ignore_conflicts=True)
+
+            count = days_to_generate * 24
+            self.stdout.write(f"  수위시계열: {station.name} - {count:,}개 (2년)")
 
         # 6. 기저유출 분석 생성
         for station in stations[:2]:
