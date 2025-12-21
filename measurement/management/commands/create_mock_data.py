@@ -38,13 +38,11 @@ class Command(BaseCommand):
 
         self.stdout.write('모의 데이터 생성 시작...')
 
-        # 1. 관측소 생성 (5개 - 2개 추가)
+        # 1. 관측소 생성 (3개)
         stations_data = [
             {'name': f'{MOCK_PREFIX} 경주 대종천', 'river_name': '대종천', 'dm_number': 'DM-TEST-001'},
             {'name': f'{MOCK_PREFIX} 신태인', 'river_name': '동진강', 'dm_number': 'DM-TEST-002'},
             {'name': f'{MOCK_PREFIX} 평림천', 'river_name': '평림천', 'dm_number': 'DM-TEST-003'},
-            {'name': f'{MOCK_PREFIX} 한강 청평', 'river_name': '한강', 'dm_number': 'DM-TEST-004'},
-            {'name': f'{MOCK_PREFIX} 낙동강 달성', 'river_name': '낙동강', 'dm_number': 'DM-TEST-005'},
         ]
 
         stations = []
@@ -91,24 +89,6 @@ class Command(BaseCommand):
                 'coef_a': 5.123, 'coef_b': 1.756, 'coef_h0': 0.05,
                 'r_squared': 0.962,
             },
-            # 한강 청평 (추가)
-            {
-                'station': stations[3],
-                'year': 2024,
-                'curve_type': 'open',
-                'h_min': 1.50, 'h_max': 8.50,
-                'coef_a': 45.832, 'coef_b': 2.125, 'coef_h0': 0.85,
-                'r_squared': 0.991,
-            },
-            # 낙동강 달성 (추가)
-            {
-                'station': stations[4],
-                'year': 2024,
-                'curve_type': 'open',
-                'h_min': 2.00, 'h_max': 12.00,
-                'coef_a': 85.456, 'coef_b': 1.892, 'coef_h0': 1.25,
-                'r_squared': 0.988,
-            },
         ]
 
         rating_curves = []
@@ -152,20 +132,6 @@ class Command(BaseCommand):
                 {'date': '2024-05-15', 'h': 0.45, 'q': 0.65},
                 {'date': '2024-07-20', 'h': 0.85, 'q': 2.35},
                 {'date': '2024-09-10', 'h': 1.20, 'q': 5.12},
-            ],
-            # 한강 청평 (추가)
-            [
-                {'date': '2024-03-10', 'h': 1.85, 'q': 125.5},
-                {'date': '2024-05-20', 'h': 3.25, 'q': 485.2},
-                {'date': '2024-07-15', 'h': 5.80, 'q': 1520.8},
-                {'date': '2024-09-05', 'h': 8.20, 'q': 3250.5},
-            ],
-            # 낙동강 달성 (추가)
-            [
-                {'date': '2024-04-05', 'h': 2.50, 'q': 215.8},
-                {'date': '2024-06-12', 'h': 4.80, 'q': 850.5},
-                {'date': '2024-08-25', 'h': 8.50, 'q': 2850.2},
-                {'date': '2024-10-10', 'h': 11.50, 'q': 5420.8},
             ],
         ]
 
@@ -267,18 +233,16 @@ class Command(BaseCommand):
             action = '생성' if created else '이미 존재'
             self.stdout.write(f"  측정세션: {session.station_name} ({action})")
 
-        # 5. 수위 시계열 생성 (2년간 시간별 데이터 - 약 17,500개/관측소)
+        # 5. 수위 시계열 생성 (90일간 시간별 데이터 - 약 2,160개/관측소)
         import math
         base_time = timezone.now().replace(minute=0, second=0, microsecond=0)
-        days_to_generate = 365 * 2  # 2년
+        days_to_generate = 90  # 3개월
 
         # 관측소별 기본 수위 특성 (base_stage, amplitude, seasonal_amplitude)
         station_characteristics = {
             0: (0.35, 0.10, 0.15),   # 경주 대종천 - 소하천
             1: (1.20, 0.30, 0.50),   # 신태인 - 중규모
             2: (0.25, 0.08, 0.12),   # 평림천 - 소하천
-            3: (3.50, 0.80, 1.50),   # 한강 청평 - 대하천
-            4: (4.20, 1.00, 2.00),   # 낙동강 달성 - 대하천
         }
 
         for idx, station in enumerate(stations):
@@ -334,7 +298,7 @@ class Command(BaseCommand):
                 WaterLevelTimeSeries.objects.bulk_create(records, ignore_conflicts=True)
 
             count = days_to_generate * 24
-            self.stdout.write(f"  수위시계열: {station.name} - {count:,}개 (2년)")
+            self.stdout.write(f"  수위시계열: {station.name} - {count:,}개 (90일)")
 
         # 6. 기저유출 분석 생성
         for station in stations[:2]:
