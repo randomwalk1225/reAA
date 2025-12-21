@@ -1018,18 +1018,78 @@ def timeseries_detail(request, station_id):
 @require_http_methods(["POST"])
 def generate_discharge_series(request):
     """Rating Curve 적용하여 유량 시계열 생성 (AJAX)"""
+    from .models import Station, WaterLevelTimeSeries, RatingCurve, DischargeTimeSeries
+
     try:
         data = json.loads(request.body)
         station_id = data.get('station_id')
         rating_curve_id = data.get('rating_curve_id')
 
-        # 실제로는 DB에서 수위 데이터를 가져와 Rating Curve 적용
-        # 여기서는 샘플 응답
+        if not station_id or not rating_curve_id:
+            return JsonResponse({'error': 'station_id와 rating_curve_id가 필요합니다.'}, status=400)
+
+        # 관측소 및 Rating Curve 조회
+        station = get_object_or_404(Station, pk=station_id)
+        rating_curve = get_object_or_404(RatingCurve, pk=rating_curve_id)
+
+        # 수위 시계열 조회
+        water_levels = WaterLevelTimeSeries.objects.filter(station=station)
+
+        if not water_levels.exists():
+            return JsonResponse({'error': '수위 시계열 데이터가 없습니다.'}, status=400)
+
+        # 기존 유량 시계열 삭제 (같은 station + rating_curve 조합)
+        DischargeTimeSeries.objects.filter(
+            station=station,
+            rating_curve=rating_curve
+        ).delete()
+
+        # 유량 계산 및 저장
+        created_count = 0
+        extrapolated_count = 0
+
+        discharge_records = []
+        for wl in water_levels:
+            if wl.stage is None:
+                continue
+
+            # Q = a * (h - h0) ^ b
+            h_diff = wl.stage - rating_curve.coef_h0
+
+            if h_diff <= 0:
+                # 수위가 h0 이하면 유량 0
+                discharge = 0
+                quality_flag = 'suspect'
+            else:
+                discharge = rating_curve.coef_a * (h_diff ** rating_curve.coef_b)
+
+                # 외삽 여부 확인
+                if wl.stage < rating_curve.h_min or wl.stage > rating_curve.h_max:
+                    quality_flag = 'extrapolated'
+                    extrapolated_count += 1
+                else:
+                    quality_flag = 'good'
+
+            discharge_records.append(DischargeTimeSeries(
+                station=station,
+                timestamp=wl.timestamp,
+                stage=wl.stage,
+                discharge=round(discharge, 4),
+                rating_curve=rating_curve,
+                quality_flag=quality_flag,
+            ))
+            created_count += 1
+
+        # 일괄 생성
+        DischargeTimeSeries.objects.bulk_create(discharge_records, batch_size=1000)
+
         return JsonResponse({
             'success': True,
-            'message': '유량 시계열 생성 완료',
-            'count': 8760,
+            'message': f'유량 시계열 생성 완료 ({created_count}개)',
+            'count': created_count,
+            'extrapolated': extrapolated_count,
         })
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
