@@ -1858,6 +1858,83 @@ def api_create_mock_data(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@csrf_exempt
+def api_create_sample_upstream_downstream(request):
+    """샘플 데이터 생성: 같은 지점/날짜에 상류+하류 데이터"""
+    from datetime import date
+    from .models import MeasurementSession
+
+    try:
+        # 상류 데이터
+        upstream = MeasurementSession.objects.create(
+            station_name='[샘플] 경주 대종천',
+            measurement_date=date(2025, 12, 22),
+            session_number=1,
+            setup_data={
+                'location_desc': '보상류 50m',
+                'river_name': '대종천',
+                'weather': '맑음',
+                'measurer': '테스트'
+            },
+            rows_data=[
+                {'distance': 0, 'depth': 0.2, 'velocity': 0.1, 'method': '1'},
+                {'distance': 2, 'depth': 0.8, 'velocity': 0.45, 'method': '1'},
+                {'distance': 4, 'depth': 1.2, 'velocity': 0.65, 'method': '1'},
+                {'distance': 6, 'depth': 1.5, 'velocity': 0.72, 'method': '1'},
+                {'distance': 8, 'depth': 1.3, 'velocity': 0.58, 'method': '1'},
+                {'distance': 10, 'depth': 0.7, 'velocity': 0.35, 'method': '1'},
+                {'distance': 12, 'depth': 0.2, 'velocity': 0.1, 'method': '1'}
+            ],
+            estimated_discharge=4.25,
+            total_width=12.0,
+            total_area=7.2,
+            mean_velocity=0.59,
+            uncertainty=8.5,
+            quality_grade='G'
+        )
+        upstream.calculate_analysis_results()
+        upstream.save()
+
+        # 하류 데이터
+        downstream = MeasurementSession.objects.create(
+            station_name='[샘플] 경주 대종천',
+            measurement_date=date(2025, 12, 22),
+            session_number=2,
+            setup_data={
+                'location_desc': '보하류 100m',
+                'river_name': '대종천',
+                'weather': '맑음',
+                'measurer': '테스트'
+            },
+            rows_data=[
+                {'distance': 0, 'depth': 0.3, 'velocity': 0.15, 'method': '1'},
+                {'distance': 3, 'depth': 1.0, 'velocity': 0.55, 'method': '1'},
+                {'distance': 6, 'depth': 1.8, 'velocity': 0.85, 'method': '1'},
+                {'distance': 9, 'depth': 2.0, 'velocity': 0.92, 'method': '1'},
+                {'distance': 12, 'depth': 1.6, 'velocity': 0.78, 'method': '1'},
+                {'distance': 15, 'depth': 0.9, 'velocity': 0.48, 'method': '1'},
+                {'distance': 18, 'depth': 0.3, 'velocity': 0.12, 'method': '1'}
+            ],
+            estimated_discharge=8.65,
+            total_width=18.0,
+            total_area=11.5,
+            mean_velocity=0.75,
+            uncertainty=7.2,
+            quality_grade='G'
+        )
+        downstream.calculate_analysis_results()
+        downstream.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': '상류/하류 샘플 데이터 생성 완료',
+            'upstream_id': upstream.id,
+            'downstream_id': downstream.id
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 # ============================================
 # 유속계 관리 API
 # ============================================
