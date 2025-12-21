@@ -1716,6 +1716,7 @@ def api_measurement_delete(request, session_id):
         return JsonResponse({'error': '세션을 찾을 수 없습니다.'}, status=404)
 
 
+@csrf_exempt
 def api_create_mock_data(request):
     """개발용: 모의 데이터 생성 API"""
     from django.core.management import call_command
