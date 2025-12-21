@@ -226,10 +226,20 @@ def calculate_discharge(rows, calibration):
             if v02 and v06 and v08:
                 velocity = (v02 + 2 * v06 + v08) / 4
 
+        # 방향각도 보정 적용
+        direction_angle = float(row.get('direction_angle', 0) or 0)
+        tan_value = 0
+        if direction_angle != 0 and velocity > 0:
+            angle_rad = math.radians(direction_angle)
+            tan_value = math.tan(angle_rad)
+            velocity = velocity * math.cos(angle_rad)
+
         verticals.append({
             'id': i + 1,
             'distance': float(row.get('distance', 0) or 0),
             'depth': float(row.get('depth', 0) or 0),
+            'direction_angle': direction_angle,
+            'tan_value': round(tan_value, 4),
             'velocity': velocity,
             'method': method,
             'area': 0,

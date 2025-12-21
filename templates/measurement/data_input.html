@@ -124,70 +124,14 @@
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h1 class="text-xl font-bold text-gray-900">측정 데이터 입력</h1>
-                <div class="flex items-center gap-2 mt-1">
-                    <!-- 관측소명 자동완성 -->
-                    <div class="relative">
-                        <input type="text" x-model="stationName"
-                               @input="searchStations(); scheduleAutoSave()"
-                               @focus="searchStations()"
-                               @blur="hideStationDropdown()"
-                               @keydown.escape="showStationDropdown = false"
-                               @keydown.down.prevent="$refs.stationDropdown?.querySelector('div')?.focus()"
-                               class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5 min-w-[180px]"
-                               placeholder="관측소 검색..."
-                               autocomplete="off">
-                        <!-- 드롭다운 -->
-                        <div x-ref="stationDropdown"
-                             x-show="showStationDropdown && stationSearchResults.length > 0"
-                             x-transition:enter="transition ease-out duration-100"
-                             x-transition:enter-start="opacity-0 scale-95"
-                             x-transition:enter-end="opacity-100 scale-100"
-                             class="absolute z-50 mt-1 w-72 bg-white rounded-lg shadow-lg border max-h-64 overflow-y-auto">
-                            <template x-for="station in stationSearchResults" :key="station.code">
-                                <div @mousedown.prevent="selectStation(station)"
-                                     class="px-3 py-2 hover:bg-primary-50 cursor-pointer border-b last:border-b-0 transition-colors">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-medium text-gray-900 text-sm" x-text="station.name"></span>
-                                        <span class="text-xs text-gray-400" x-text="station.code"></span>
-                                    </div>
-                                    <div class="flex items-center gap-2 mt-0.5">
-                                        <span class="text-xs text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded" x-text="station.river"></span>
-                                        <span class="text-xs text-gray-400" x-text="station.year ? station.year + '년~' : ''"></span>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                    <span class="text-gray-400">|</span>
-                    <input type="date" x-model="measurementDate" @change="scheduleAutoSave"
-                           class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5">
-                </div>
+                <p class="text-sm text-gray-600">{{ measurement.station_name|default:"경주 대종천 하류보" }} | {{ measurement.date|default:"2025-05-01" }}</p>
             </div>
 
             <div class="flex items-center gap-4">
-                <!-- 히스토리 토글 -->
-                <button @click="showHistory = !showHistory"
-                        class="inline-flex items-center px-3 py-1.5 text-sm rounded-lg transition-colors"
-                        :class="showHistory ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    히스토리
-                </button>
-
-                <!-- 새로 입력 (초기화) -->
-                <button @click="resetForm"
-                        class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    새로 입력
-                </button>
-
                 <!-- 측정 회차 -->
                 <div class="flex items-center gap-2">
                     <label class="text-sm text-gray-600">측정회차:</label>
-                    <select x-model="currentSession" @change="switchSession; scheduleAutoSave()"
+                    <select x-model="currentSession" @change="switchSession"
                             class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500">
                         <option value="1">1차</option>
                         <option value="2">2차</option>
@@ -201,27 +145,8 @@
                 </div>
 
                 <!-- 저장 상태 -->
-                <div class="flex items-center gap-2 text-sm">
-                    <template x-if="isSaving">
-                        <span class="text-amber-600 flex items-center">
-                            <svg class="w-4 h-4 mr-1 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            저장 중...
-                        </span>
-                    </template>
-                    <template x-if="!isSaving && isSaved">
-                        <span class="text-green-600 flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            자동 저장됨
-                        </span>
-                    </template>
-                    <template x-if="!isSaving && !isSaved && !isAuthenticated">
-                        <span class="text-gray-400">로그인 시 자동저장</span>
-                    </template>
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                    <span x-show="isSaved" class="text-green-600">저장됨</span>
                 </div>
             </div>
         </div>
@@ -250,27 +175,9 @@
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
-                CSV
+                CSV 가져오기
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
             </label>
-            <!-- Parquet 가져오기 -->
-            <label class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors cursor-pointer">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                </svg>
-                Parquet
-                <input type="file" accept=".parquet" @change="importParquet($event)" class="hidden">
-            </label>
-            <!-- 테스트 CSV (개발용) -->
-            {% if debug %}
-            <button type="button" @click="loadTestCSV"
-                    class="inline-flex items-center px-3 py-1.5 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-                </svg>
-                테스트 CSV
-            </button>
-            {% endif %}
             <button type="button" @click="exportCSV"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,52 +222,6 @@
         </div>
 
         <div class="flex gap-4">
-            <!-- History Panel (Left Side) -->
-            <div x-show="showHistory" x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 -translate-x-4" x-transition:enter-end="opacity-100 translate-x-0"
-                 class="w-72 flex-shrink-0">
-                <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
-                    <div class="bg-amber-50 px-4 py-3 border-b flex items-center justify-between">
-                        <h3 class="font-medium text-amber-800">저장된 기록</h3>
-                        <button @click="loadHistory" class="text-amber-600 hover:text-amber-800">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="max-h-96 overflow-y-auto">
-                        <template x-if="historyLoading">
-                            <div class="p-4 text-center text-gray-500">
-                                <svg class="w-6 h-6 mx-auto animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            </div>
-                        </template>
-                        <template x-if="!historyLoading && historyItems.length === 0">
-                            <div class="p-4 text-center text-gray-500 text-sm">
-                                저장된 기록이 없습니다.
-                            </div>
-                        </template>
-                        <template x-for="item in historyItems" :key="item.id">
-                            <div @click="loadSession(item.id)"
-                                 class="px-4 py-3 border-b hover:bg-amber-50 cursor-pointer transition-colors"
-                                 :class="sessionId === item.id ? 'bg-amber-100' : ''">
-                                <div class="flex items-center justify-between">
-                                    <span class="font-medium text-sm text-gray-900" x-text="item.station_name"></span>
-                                    <span class="text-xs text-gray-400" x-text="item.session_number + '차'"></span>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1" x-text="item.measurement_date || '날짜 미지정'"></div>
-                                <div class="flex items-center justify-between mt-1">
-                                    <span class="text-xs text-primary-600 font-medium" x-text="item.estimated_discharge ? item.estimated_discharge.toFixed(3) + ' m³/s' : '-'"></span>
-                                    <span class="text-xs text-gray-400" x-text="item.updated_at"></span>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
             <!-- Data Grid -->
             <div class="flex-1 bg-white rounded-lg shadow-sm border overflow-hidden min-w-0">
                 <div class="overflow-x-auto">
@@ -371,6 +232,8 @@
                                 <th class="border-b border-r px-2 py-2 text-center col-data">거리<br><span class="font-normal text-gray-500">(m)</span></th>
                                 <th class="border-b border-r px-2 py-2 text-center col-data">수심<br><span class="font-normal text-gray-500">(m)</span></th>
                                 <th class="border-b border-r px-2 py-2 text-center col-method">측정</th>
+                                <th class="border-b border-r px-2 py-2 text-center col-data">방향<br><span class="font-normal text-gray-500">(°)</span></th>
+                                <th class="border-b border-r px-2 py-2 text-center col-data">tan<br><span class="font-normal text-gray-500">(환산)</span></th>
                                 <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
                                 <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
                                 <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
@@ -380,6 +243,8 @@
                                 <th class="border-b px-2 py-2 text-center col-velocity">유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
                             </tr>
                             <tr class="bg-gray-50 text-xs text-gray-500">
+                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
@@ -416,6 +281,17 @@
                                             <option value="3">3점</option>
                                             <option value="REW">REW</option>
                                         </select>
+                                    </td>
+                                    <!-- 방향각도 -->
+                                    <td class="border-b border-r">
+                                        <input type="number" step="0.1" x-model="row.direction_angle"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'direction_angle')"
+                                               placeholder="0">
+                                    </td>
+                                    <!-- tan 환산값 -->
+                                    <td class="border-b border-r text-center text-sm velocity-cell"
+                                        :class="row.tan_value ? 'text-blue-600 bg-blue-50' : 'text-gray-400'"
+                                        x-text="row.tan_value ? row.tan_value.toFixed(4) : '-'">
                                     </td>
                                     <!-- 0.2D -->
                                     <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'disabled-cell' : ''">
@@ -465,7 +341,7 @@
                             </template>
                             <!-- Add Row Button -->
                             <tr>
-                                <td colspan="11" class="border-b">
+                                <td colspan="13" class="border-b">
                                     <button type="button" @click="addRow"
                                             class="w-full py-2 text-sm text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors">
                                         + 측선 추가
@@ -532,15 +408,8 @@
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
-                CSV
+                CSV 가져오기
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
-            </label>
-            <label class="inline-flex items-center px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg whitespace-nowrap cursor-pointer">
-                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                </svg>
-                Parquet
-                <input type="file" accept=".parquet" @change="importParquet($event)" class="hidden">
             </label>
             <button @click="exportCSV()"
                     class="inline-flex items-center px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg whitespace-nowrap">
@@ -594,7 +463,7 @@
                         <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-600 mr-3"
                              x-text="index + 1"></div>
 
-                        <div class="flex-1 grid grid-cols-3 gap-2 text-center">
+                        <div class="flex-1 grid grid-cols-4 gap-2 text-center">
                             <div>
                                 <div class="text-xs text-gray-500">거리</div>
                                 <div class="font-semibold" x-text="row.distance ? row.distance + 'm' : '-'"></div>
@@ -602,6 +471,10 @@
                             <div>
                                 <div class="text-xs text-gray-500">수심</div>
                                 <div class="font-semibold" x-text="row.depth ? row.depth + 'm' : '-'"></div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">방향°</div>
+                                <div class="font-semibold text-blue-600" x-text="row.direction_angle ? row.direction_angle + '°' : '-'"></div>
                             </div>
                             <div>
                                 <div class="text-xs text-gray-500">유속</div>
@@ -622,7 +495,7 @@
                     <div x-show="expandedRow === index" x-collapse>
                         <div class="px-4 pb-4 pt-2 border-t bg-gray-50">
                             <!-- Basic Info -->
-                            <div class="grid grid-cols-3 gap-3 mb-4">
+                            <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">거리 (m)</label>
                                     <input type="number" step="0.01" x-model="row.distance"
@@ -637,6 +510,8 @@
                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center"
                                            placeholder="0.00">
                                 </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3 mb-4">
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">측정법</label>
                                     <select x-model="row.method" @change="calculateVelocity(index)"
@@ -647,6 +522,18 @@
                                         <option value="3">3점</option>
                                         <option value="REW">REW</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">방향 (°)</label>
+                                    <input type="number" step="0.1" x-model="row.direction_angle"
+                                           @input="calculateVelocity(index)"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center"
+                                           placeholder="0">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">tan 환산</label>
+                                    <div class="w-full px-3 py-2 border border-gray-200 rounded-lg text-center bg-blue-50 text-blue-600 font-medium"
+                                         x-text="row.tan_value ? row.tan_value.toFixed(4) : '-'"></div>
                                 </div>
                             </div>
 
@@ -765,34 +652,11 @@
 <script>
 function dataInputGrid() {
     return {
-        // 세션 정보
-        sessionId: null,
-        stationName: '',
-        measurementDate: '',
         currentSession: '1',
-
-        // UI 상태
         selectedRow: null,
         expandedRow: 0,
         showChart: true,
-        showHistory: false,
-
-        // 저장 상태
-        isSaved: false,
-        isSaving: false,
-        isAuthenticated: true,  // 개발 모드: 항상 자동저장 활성화
-        autoSaveTimer: null,
-
-        // 히스토리
-        historyItems: [],
-        historyLoading: false,
-
-        // 관측소 자동완성
-        stationsList: [],
-        stationSearchResults: [],
-        showStationDropdown: false,
-
-        // 계산 결과
+        isSaved: true,
         estimatedDischarge: '--',
         crossSectionChartPC: null,
         crossSectionChartMobile: null,
@@ -804,16 +668,17 @@ function dataInputGrid() {
             b: 0.2534
         },
 
-        // /measurement/new/ 에서 전달된 추가 설정 (하천명, 기상 등)
-        setupData: {},
-
-        // 초기 데이터 (빈 폼)
-        defaultRows: [
-            { id: 1, distance: null, depth: null, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 2, distance: null, depth: null, method: '1', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 3, distance: null, depth: null, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+        // 초기 데이터
+        rows: [
+            { id: 1, distance: 0, depth: 0, method: 'LEW', direction_angle: 0, tan_value: 0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 2, distance: 1.5, depth: 0.45, method: '1', direction_angle: 0, tan_value: 0, n_02d: null, t_02d: null, n_06d: 42, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 3, distance: 3.0, depth: 0.72, method: '2', direction_angle: 0, tan_value: 0, n_02d: 65, t_02d: 60, n_06d: null, t_06d: null, n_08d: 38, t_08d: 60, velocity: 0 },
+            { id: 4, distance: 4.5, depth: 1.20, method: '3', direction_angle: 0, tan_value: 0, n_02d: 82, t_02d: 60, n_06d: 75, t_06d: 60, n_08d: 45, t_08d: 60, velocity: 0 },
+            { id: 5, distance: 6.0, depth: 1.35, method: '3', direction_angle: 0, tan_value: 0, n_02d: 95, t_02d: 60, n_06d: 88, t_06d: 60, n_08d: 52, t_08d: 60, velocity: 0 },
+            { id: 6, distance: 7.5, depth: 0.85, method: '2', direction_angle: 0, tan_value: 0, n_02d: 70, t_02d: 60, n_06d: null, t_06d: null, n_08d: 42, t_08d: 60, velocity: 0 },
+            { id: 7, distance: 9.0, depth: 0.50, method: '1', direction_angle: 0, tan_value: 0, n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 8, distance: 10.5, depth: 0, method: 'REW', direction_angle: 0, tan_value: 0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
         ],
-        rows: [],
 
         get totalWidth() {
             if (this.rows.length < 2) return 0;
@@ -836,27 +701,6 @@ function dataInputGrid() {
         },
 
         init() {
-            // 초기 rows 설정
-            this.rows = JSON.parse(JSON.stringify(this.defaultRows));
-
-            // 오늘 날짜로 기본값 설정
-            this.measurementDate = new Date().toISOString().split('T')[0];
-
-            // 관측소 목록 로드
-            this.loadStationsList();
-
-            // URL 파라미터 확인
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionIdFromUrl = urlParams.get('session_id');
-
-            if (sessionIdFromUrl) {
-                // 수정 모드: 기존 세션 로드
-                this.loadSession(sessionIdFromUrl);
-            } else {
-                // 새 측정 모드: /measurement/new/ 에서 전달된 설정 데이터 로드
-                this.loadSetupFromSession();
-            }
-
             // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
             this.rows.forEach((row, index) => this.calculateVelocity(index));
             this.updateEstimatedDischarge();
@@ -878,13 +722,6 @@ function dataInputGrid() {
                 }
             });
 
-            // showHistory 변경 시 히스토리 로드
-            this.$watch('showHistory', (value) => {
-                if (value && this.historyItems.length === 0) {
-                    this.loadHistory();
-                }
-            });
-
             // 화면 크기 변경 시 차트 다시 그리기
             let resizeTimer;
             window.addEventListener('resize', () => {
@@ -893,121 +730,6 @@ function dataInputGrid() {
                     this.updateCrossSectionChart();
                 }, 250);
             });
-        },
-
-        // ===== 자동저장 =====
-        scheduleAutoSave() {
-            if (!this.isAuthenticated) return;
-
-            this.isSaved = false;
-            if (this.autoSaveTimer) {
-                clearTimeout(this.autoSaveTimer);
-            }
-            this.autoSaveTimer = setTimeout(() => this.autoSave(), 2000);
-        },
-
-        async autoSave() {
-            if (!this.isAuthenticated) return;
-
-            this.isSaving = true;
-            try {
-                const response = await fetch('{% url "measurement:api_measurement_autosave" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({
-                        session_id: this.sessionId,
-                        station_name: this.stationName,
-                        measurement_date: this.measurementDate,
-                        session_number: parseInt(this.currentSession),
-                        rows: this.rows,
-                        calibration: this.calibration,
-                        estimated_discharge: parseFloat(this.estimatedDischarge) || null,
-                        total_width: this.totalWidth,
-                        max_depth: this.maxDepth,
-                        total_area: this.totalArea,
-                        setup_data: this.setupData,  // 하천명, 기상, 측정자 등
-                    })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    this.sessionId = result.session_id;
-                    this.isSaved = true;
-                    // 히스토리가 열려있으면 갱신
-                    if (this.showHistory) {
-                        this.loadHistory();
-                    }
-                } else {
-                    console.error('Auto-save failed:', await response.text());
-                }
-            } catch (e) {
-                console.error('Auto-save error:', e);
-            } finally {
-                this.isSaving = false;
-            }
-        },
-
-        // ===== 히스토리 =====
-        async loadHistory() {
-            if (!this.isAuthenticated) return;
-
-            this.historyLoading = true;
-            try {
-                const response = await fetch('{% url "measurement:api_measurement_history" %}');
-                if (response.ok) {
-                    const result = await response.json();
-                    this.historyItems = result.history;
-                }
-            } catch (e) {
-                console.error('Load history error:', e);
-            } finally {
-                this.historyLoading = false;
-            }
-        },
-
-        async loadSession(sessionId) {
-            try {
-                const response = await fetch(`/measurement/api/session/${sessionId}/load/`);
-                if (response.ok) {
-                    const data = await response.json();
-                    this.sessionId = data.session_id;
-                    this.stationName = data.station_name || '';
-                    this.measurementDate = data.measurement_date || '';
-                    this.currentSession = String(data.session_number || 1);
-                    this.rows = data.rows || JSON.parse(JSON.stringify(this.defaultRows));
-                    this.calibration = data.calibration || { a: 0.0012, b: 0.2534 };
-                    this.setupData = data.setup_data || {};
-
-                    // 유속 재계산
-                    this.rows.forEach((row, index) => this.calculateVelocity(index));
-                    this.updateEstimatedDischarge();
-                    this.isSaved = true;
-                }
-            } catch (e) {
-                console.error('Load session error:', e);
-                alert('데이터를 불러오는데 실패했습니다.');
-            }
-        },
-
-        // ===== 초기화 =====
-        resetForm() {
-            if (this.rows.some(r => r.distance || r.depth)) {
-                if (!confirm('현재 입력된 데이터가 삭제됩니다. 새로 입력하시겠습니까?')) {
-                    return;
-                }
-            }
-            this.sessionId = null;
-            this.stationName = '';
-            this.measurementDate = new Date().toISOString().split('T')[0];
-            this.currentSession = '1';
-            this.setupData = {};
-            this.rows = JSON.parse(JSON.stringify(this.defaultRows));
-            this.rows.forEach((row, index) => this.calculateVelocity(index));
-            this.updateEstimatedDischarge();
-            this.isSaved = false;
         },
 
         toggleRow(index) {
@@ -1021,21 +743,23 @@ function dataInputGrid() {
                 distance: null,
                 depth: null,
                 method: '1',
+                direction_angle: 0,
+                tan_value: 0,
                 n_02d: null, t_02d: null,
                 n_06d: null, t_06d: null,
                 n_08d: null, t_08d: null,
                 velocity: 0
             });
+            this.isSaved = false;
             this.expandedRow = this.rows.length - 1;
-            this.scheduleAutoSave();
         },
 
         deleteRow(index) {
             if (this.rows.length > 2) {
                 this.rows.splice(index, 1);
                 this.expandedRow = null;
+                this.isSaved = false;
                 this.updateEstimatedDischarge();
-                this.scheduleAutoSave();
             }
         },
 
@@ -1043,8 +767,8 @@ function dataInputGrid() {
             if (this.selectedRow !== null && this.rows.length > 2) {
                 this.rows.splice(this.selectedRow, 1);
                 this.selectedRow = null;
+                this.isSaved = false;
                 this.updateEstimatedDischarge();
-                this.scheduleAutoSave();
             }
         },
 
@@ -1064,6 +788,11 @@ function dataInputGrid() {
         calculateVelocity(index) {
             const row = this.rows[index];
             const { a, b } = this.calibration;
+
+            // 방향각도 → 탄젠트 환산
+            const angle = parseFloat(row.direction_angle) || 0;
+            const angleRad = angle * Math.PI / 180;
+            row.tan_value = Math.tan(angleRad);
 
             // 유속 계산: V = a + b * (N/T)
             const calcV = (n, t) => {
@@ -1094,9 +823,15 @@ function dataInputGrid() {
                     velocity = 0;
             }
 
+            // 방향 보정 적용: V_corrected = V * cos(θ)
+            // (유속계가 흐름 방향에 비스듬히 설치된 경우)
+            if (angle !== 0 && velocity > 0) {
+                velocity = velocity * Math.cos(angleRad);
+            }
+
             row.velocity = velocity;
+            this.isSaved = false;
             this.updateEstimatedDischarge();
-            this.scheduleAutoSave();
         },
 
         updateEstimatedDischarge() {
@@ -1192,69 +927,37 @@ function dataInputGrid() {
                         distance: distance,
                         depth: depth,
                         method: method,
-                        n_02d: parseFloat(values[2]) || null,
-                        t_02d: parseFloat(values[3]) || null,
-                        n_06d: parseFloat(values[4]) || null,
-                        t_06d: parseFloat(values[5]) || null,
-                        n_08d: parseFloat(values[6]) || null,
-                        t_08d: parseFloat(values[7]) || null,
+                        direction_angle: parseFloat(values[2]) || 0,
+                        tan_value: 0,
+                        n_02d: parseFloat(values[3]) || null,
+                        t_02d: parseFloat(values[4]) || null,
+                        n_06d: parseFloat(values[5]) || null,
+                        t_06d: parseFloat(values[6]) || null,
+                        n_08d: parseFloat(values[7]) || null,
+                        t_08d: parseFloat(values[8]) || null,
                         velocity: 0
                     });
                 }
 
                 this.rows.forEach((row, index) => this.calculateVelocity(index));
                 this.updateEstimatedDischarge();
+                this.isSaved = false;
                 this.expandedRow = 0;
                 event.target.value = '';
-                this.scheduleAutoSave();
             };
             reader.readAsText(file);
         },
 
-        async importParquet(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            try {
-                const response = await fetch('{% url "measurement:api_parquet_import" %}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    this.rows = result.rows;
-                    this.rows.forEach((row, index) => this.calculateVelocity(index));
-                    this.updateEstimatedDischarge();
-                    this.expandedRow = 0;
-                    this.scheduleAutoSave();
-                    console.log(`Parquet 임포트 완료: ${result.count}행`);
-                } else {
-                    alert('Parquet 임포트 오류: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Parquet import error:', error);
-                alert('Parquet 파일 처리 중 오류가 발생했습니다.');
-            } finally {
-                event.target.value = '';
-            }
-        },
-
         exportCSV() {
             const BOM = '\uFEFF';
-            let csv = BOM + '거리(m),수심(m),측정법,N_0.2D,T_0.2D,N_0.6D,T_0.6D,N_0.8D,T_0.8D,유속(m/s)\n';
+            let csv = BOM + '거리(m),수심(m),방향(°),tan환산,측정법,N_0.2D,T_0.2D,N_0.6D,T_0.6D,N_0.8D,T_0.8D,유속(m/s)\n';
 
             this.rows.forEach(row => {
                 csv += [
                     row.distance || 0,
                     row.depth || 0,
+                    row.direction_angle || 0,
+                    row.tan_value ? row.tan_value.toFixed(4) : 0,
                     row.method || '',
                     row.n_02d || '',
                     row.t_02d || '',
@@ -1275,282 +978,46 @@ function dataInputGrid() {
             URL.revokeObjectURL(url);
         },
 
-        loadSetupFromSession() {
-            // /measurement/new/ 에서 저장한 설정 데이터 로드
-            const setupJson = sessionStorage.getItem('measurementSetup');
-            if (!setupJson) return;
-
-            try {
-                const setup = JSON.parse(setupJson);
-
-                // 기본 정보 로드
-                this.stationName = setup.station_name || '';
-                this.measurementDate = setup.measurement_date || new Date().toISOString().split('T')[0];
-                this.currentSession = setup.measurement_count || '1';
-
-                // 유속계 검정 계수 로드 (V = a + b * N/T)
-                if (setup.calibration) {
-                    this.calibration = {
-                        a: setup.calibration.a ?? 0.0012,
-                        b: setup.calibration.b ?? 0.2534
-                    };
-                    console.log('검정식 적용:', `V = ${this.calibration.a} + ${this.calibration.b} × (N/T)`);
-                }
-
-                // 추가 정보 저장 (나중에 결과 페이지에서 사용)
-                this.setupData = {
-                    station_code: setup.station_code || '',
-                    river_name: setup.river_name || '',
-                    dm_number: setup.dm_number || '',
-                    location_desc: setup.location_desc || '',
-                    weather: setup.weather || '',
-                    wind: setup.wind || '',
-                    measurer: setup.measurer || '',
-                    note: setup.note || '',
-                    direction: setup.direction || 'LEW_REW',
-                    meter_type: setup.meter_type || 'propeller',
-                    meter_id: setup.meter_id || '',
-                    calibration: setup.calibration || null,
-                };
-
-                // 세션 스토리지에서 삭제 (일회성)
-                sessionStorage.removeItem('measurementSetup');
-
-                console.log('측정 설정 로드됨:', this.stationName);
-
-                // 검정식이 적용되면 기존 데이터가 있을 경우 유속 재계산
-                if (setup.calibration && this.rows.length > 0) {
-                    this.rows.forEach((row, index) => this.calculateVelocity(index));
-                    this.updateEstimatedDischarge();
-                }
-            } catch (e) {
-                console.error('설정 로드 오류:', e);
-            }
-        },
-
-        // ===== 관측소 자동완성 =====
-        async loadStationsList() {
-            try {
-                const response = await fetch('/static/data/stations.json');
-                if (response.ok) {
-                    this.stationsList = await response.json();
-                    console.log(`관측소 ${this.stationsList.length}개 로드됨`);
-                }
-            } catch (e) {
-                console.warn('관측소 목록 로드 실패:', e);
-            }
-        },
-
-        searchStations() {
-            const query = this.stationName.toLowerCase().trim();
-            if (!query || query.length < 1) {
-                this.stationSearchResults = [];
-                this.showStationDropdown = false;
-                return;
-            }
-
-            this.stationSearchResults = this.stationsList.filter(s =>
-                s.name.toLowerCase().includes(query) ||
-                s.river.toLowerCase().includes(query) ||
-                s.code.includes(query)
-            ).slice(0, 10);
-
-            this.showStationDropdown = this.stationSearchResults.length > 0;
-        },
-
-        selectStation(station) {
-            this.stationName = station.name;
-            this.setupData.river_name = station.river;
-            this.setupData.station_code = station.code;
-            this.showStationDropdown = false;
-            this.scheduleAutoSave();
-        },
-
-        hideStationDropdown() {
-            // 클릭 이벤트가 처리된 후 닫히도록 약간 지연
-            setTimeout(() => {
-                this.showStationDropdown = false;
-            }, 200);
-        },
-
-        loadTestCSV() {
-            // 6개의 테스트 데이터 세트
-            const testDataSets = [
-                // 1. 경주 대종천 - 중규모 하천 (15m 폭, 최대 1.35m 수심)
-                {
-                    name: '경주 대종천',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 1.50, depth: 0.32, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 3.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 112, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 4.50, depth: 0.85, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
-                        { distance: 6.00, depth: 1.12, method: '3', n_02d: 125, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
-                        { distance: 7.50, depth: 1.35, method: '3', n_02d: 142, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
-                        { distance: 9.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 112, t_06d: 60, n_08d: 94, t_08d: 60 },
-                        { distance: 10.50, depth: 0.95, method: '2', n_02d: 108, t_02d: 60, n_06d: null, t_06d: null, n_08d: 85, t_08d: 60 },
-                        { distance: 12.00, depth: 0.62, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 13.50, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 15.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-                // 2. 신태인 동진강 - 대규모 하천 (25m 폭, 최대 2.1m 수심)
-                {
-                    name: '신태인 동진강',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 2.50, depth: 0.45, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 5.00, depth: 0.92, method: '2', n_02d: 115, t_02d: 60, n_06d: null, t_06d: null, n_08d: 88, t_08d: 60 },
-                        { distance: 7.50, depth: 1.45, method: '3', n_02d: 145, t_02d: 60, n_06d: 125, t_06d: 60, n_08d: 105, t_08d: 60 },
-                        { distance: 10.00, depth: 1.85, method: '3', n_02d: 168, t_02d: 60, n_06d: 142, t_06d: 60, n_08d: 118, t_08d: 60 },
-                        { distance: 12.50, depth: 2.10, method: '3', n_02d: 185, t_02d: 60, n_06d: 158, t_06d: 60, n_08d: 132, t_08d: 60 },
-                        { distance: 15.00, depth: 1.95, method: '3', n_02d: 172, t_02d: 60, n_06d: 148, t_06d: 60, n_08d: 125, t_08d: 60 },
-                        { distance: 17.50, depth: 1.52, method: '3', n_02d: 152, t_02d: 60, n_06d: 128, t_06d: 60, n_08d: 108, t_08d: 60 },
-                        { distance: 20.00, depth: 0.98, method: '2', n_02d: 118, t_02d: 60, n_06d: null, t_06d: null, n_08d: 92, t_08d: 60 },
-                        { distance: 22.50, depth: 0.52, method: '1', n_02d: null, t_02d: null, n_06d: 78, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 25.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-                // 3. 평림천 - 소규모 하천 (8m 폭, 최대 0.65m 수심)
-                {
-                    name: '평림천',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 1.00, depth: 0.18, method: '1', n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 2.00, depth: 0.35, method: '1', n_02d: null, t_02d: null, n_06d: 68, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 3.00, depth: 0.52, method: '1', n_02d: null, t_02d: null, n_06d: 82, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 4.00, depth: 0.65, method: '2', n_02d: 92, t_02d: 60, n_06d: null, t_06d: null, n_08d: 72, t_08d: 60 },
-                        { distance: 5.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 78, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 6.00, depth: 0.42, method: '1', n_02d: null, t_02d: null, n_06d: 62, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 7.00, depth: 0.22, method: '1', n_02d: null, t_02d: null, n_06d: 38, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 8.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-                // 4. 낙동강 구미 - 대규모 하천 (45m 폭, 최대 3.2m 수심)
-                {
-                    name: '낙동강 구미',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 5.00, depth: 0.85, method: '2', n_02d: 105, t_02d: 60, n_06d: null, t_06d: null, n_08d: 82, t_08d: 60 },
-                        { distance: 10.00, depth: 1.65, method: '3', n_02d: 155, t_02d: 60, n_06d: 132, t_06d: 60, n_08d: 112, t_08d: 60 },
-                        { distance: 15.00, depth: 2.45, method: '3', n_02d: 195, t_02d: 60, n_06d: 168, t_06d: 60, n_08d: 142, t_08d: 60 },
-                        { distance: 20.00, depth: 3.05, method: '3', n_02d: 225, t_02d: 60, n_06d: 192, t_06d: 60, n_08d: 165, t_08d: 60 },
-                        { distance: 25.00, depth: 3.20, method: '3', n_02d: 238, t_02d: 60, n_06d: 205, t_06d: 60, n_08d: 175, t_08d: 60 },
-                        { distance: 30.00, depth: 2.85, method: '3', n_02d: 212, t_02d: 60, n_06d: 182, t_06d: 60, n_08d: 155, t_08d: 60 },
-                        { distance: 35.00, depth: 2.15, method: '3', n_02d: 178, t_02d: 60, n_06d: 152, t_06d: 60, n_08d: 128, t_08d: 60 },
-                        { distance: 40.00, depth: 1.25, method: '3', n_02d: 135, t_02d: 60, n_06d: 115, t_06d: 60, n_08d: 95, t_08d: 60 },
-                        { distance: 45.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-                // 5. 한강 팔당 - 대규모 하천 (35m 폭, 최대 2.8m 수심, 빠른 유속)
-                {
-                    name: '한강 팔당',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 3.50, depth: 0.72, method: '2', n_02d: 125, t_02d: 60, n_06d: null, t_06d: null, n_08d: 98, t_08d: 60 },
-                        { distance: 7.00, depth: 1.45, method: '3', n_02d: 175, t_02d: 60, n_06d: 148, t_06d: 60, n_08d: 125, t_08d: 60 },
-                        { distance: 10.50, depth: 2.15, method: '3', n_02d: 215, t_02d: 60, n_06d: 185, t_06d: 60, n_08d: 158, t_08d: 60 },
-                        { distance: 14.00, depth: 2.65, method: '3', n_02d: 248, t_02d: 60, n_06d: 215, t_06d: 60, n_08d: 185, t_08d: 60 },
-                        { distance: 17.50, depth: 2.80, method: '3', n_02d: 262, t_02d: 60, n_06d: 228, t_06d: 60, n_08d: 195, t_08d: 60 },
-                        { distance: 21.00, depth: 2.55, method: '3', n_02d: 242, t_02d: 60, n_06d: 208, t_06d: 60, n_08d: 178, t_08d: 60 },
-                        { distance: 24.50, depth: 1.85, method: '3', n_02d: 195, t_02d: 60, n_06d: 168, t_06d: 60, n_08d: 142, t_08d: 60 },
-                        { distance: 28.00, depth: 1.15, method: '3', n_02d: 148, t_02d: 60, n_06d: 125, t_06d: 60, n_08d: 105, t_08d: 60 },
-                        { distance: 31.50, depth: 0.55, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 35.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-                // 6. 금강 공주 - 중규모 하천 (20m 폭, 최대 1.8m 수심)
-                {
-                    name: '금강 공주',
-                    data: [
-                        { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                        { distance: 2.00, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 4.00, depth: 0.78, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
-                        { distance: 6.00, depth: 1.18, method: '3', n_02d: 128, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
-                        { distance: 8.00, depth: 1.52, method: '3', n_02d: 152, t_02d: 60, n_06d: 128, t_06d: 60, n_08d: 108, t_08d: 60 },
-                        { distance: 10.00, depth: 1.80, method: '3', n_02d: 172, t_02d: 60, n_06d: 145, t_06d: 60, n_08d: 122, t_08d: 60 },
-                        { distance: 12.00, depth: 1.65, method: '3', n_02d: 162, t_02d: 60, n_06d: 138, t_06d: 60, n_08d: 115, t_08d: 60 },
-                        { distance: 14.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
-                        { distance: 16.00, depth: 0.85, method: '2', n_02d: 105, t_02d: 60, n_06d: null, t_06d: null, n_08d: 82, t_08d: 60 },
-                        { distance: 18.00, depth: 0.42, method: '1', n_02d: null, t_02d: null, n_06d: 65, t_06d: 60, n_08d: null, t_08d: null },
-                        { distance: 20.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
-                    ]
-                },
-            ];
-
-            // 무작위로 하나 선택
-            const randomIndex = Math.floor(Math.random() * testDataSets.length);
-            const selected = testDataSets[randomIndex];
-
-            this.rows = selected.data.map((row, index) => ({
-                id: index + 1,
-                ...row,
-                velocity: 0
-            }));
-
-            // 기존 관측소명이 없을 때만 테스트용으로 설정
-            if (!this.stationName) {
-                this.stationName = `${selected.name} (테스트)`;
-            }
-            if (!this.measurementDate) {
-                this.measurementDate = new Date().toISOString().split('T')[0];
-            }
-
-            // 유속 재계산
-            this.rows.forEach((row, index) => this.calculateVelocity(index));
-            this.updateEstimatedDischarge();
-            this.expandedRow = 0;
-            this.scheduleAutoSave();
-        },
-
         switchSession() {
             console.log('Switch to session:', this.currentSession);
         },
 
         saveDraft() {
-            this.autoSave();
+            console.log('Saving draft:', this.rows);
+            this.isSaved = true;
         },
 
         async calculate() {
-            // 중복 클릭 방지
-            if (this.isSaving) return;
+            // 데이터를 서버로 전송
+            const data = {
+                rows: this.rows,
+                calibration: this.calibration
+            };
 
-            // 1. 먼저 데이터 저장 (세션 생성/업데이트)
-            this.isSaving = true;
             try {
-                const saveResponse = await fetch('{% url "measurement:api_measurement_autosave" %}', {
+                const response = await fetch('{% url "measurement:result" %}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: JSON.stringify({
-                        session_id: this.sessionId,
-                        station_name: this.stationName,
-                        measurement_date: this.measurementDate,
-                        session_number: parseInt(this.currentSession),
-                        rows: this.rows,
-                        calibration: this.calibration,
-                        estimated_discharge: parseFloat(this.estimatedDischarge) || null,
-                        total_width: this.totalWidth,
-                        max_depth: this.maxDepth,
-                        total_area: this.totalArea,
-                        setup_data: this.setupData,
-                    })
+                    body: JSON.stringify(data)
                 });
 
-                if (!saveResponse.ok) {
-                    throw new Error('데이터 저장 실패');
+                if (response.ok) {
+                    // 결과 페이지 HTML을 받아서 표시
+                    const html = await response.text();
+                    document.open();
+                    document.write(html);
+                    document.close();
+                    // URL 변경
+                    window.history.pushState({}, '', '{% url "measurement:result" %}');
+                } else {
+                    const error = await response.json();
+                    alert('계산 오류: ' + error.error);
                 }
-
-                const saveResult = await saveResponse.json();
-                this.sessionId = saveResult.session_id;
-
-                // 2. 결과 페이지로 리다이렉트 (document.write 대신 일반 페이지 이동)
-                window.location.href = '{% url "measurement:result" %}?session_id=' + this.sessionId;
-
             } catch (e) {
-                alert('오류: ' + e.message);
-                this.isSaving = false;
+                alert('서버 오류: ' + e.message);
             }
         },
 

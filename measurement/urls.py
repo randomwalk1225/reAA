@@ -65,6 +65,7 @@ urlpatterns = [
 
     # 개발용: 모의 데이터 생성
     path('api/dev/create-mock-data/', views.api_create_mock_data, name='api_create_mock_data'),
+    path('api/dev/create-sample-upstream/', views.api_create_sample_upstream_downstream, name='api_create_sample_upstream'),
 
     # 유속계 API
     path('api/meters/', views.api_meters_list, name='api_meters_list'),
