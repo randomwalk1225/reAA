@@ -1841,3 +1841,147 @@ def api_create_mock_data(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============================================
+# 유속계 관리 API
+# ============================================
+
+@require_GET
+def api_meters_list(request):
+    """유속계 목록 조회 API"""
+    from .models import Meter
+
+    meters = Meter.objects.all()
+    data = []
+    for m in meters:
+        data.append({
+            'id': m.id,
+            'meter_id': m.meter_id,
+            'type': m.meter_type,
+            'a': m.coef_a,
+            'b': m.coef_b,
+            'range': m.range_display,
+            'range_min': m.range_min,
+            'range_max': m.range_max,
+            'uncertainty': m.uncertainty,
+            'calibrationDate': m.calibration_date.strftime('%Y-%m-%d') if m.calibration_date else None,
+            'calibrationOrg': m.calibration_org,
+            'status': m.status,
+        })
+
+    return JsonResponse({'success': True, 'meters': data})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_meters_create(request):
+    """유속계 생성 API"""
+    from .models import Meter
+    import json
+
+    try:
+        data = json.loads(request.body)
+
+        meter = Meter.objects.create(
+            meter_id=data.get('meter_id', ''),
+            meter_type=data.get('type', 'propeller'),
+            coef_a=float(data.get('a', 0)),
+            coef_b=float(data.get('b', 1)),
+            range_min=float(data.get('range_min', 0)),
+            range_max=float(data.get('range_max', 6.0)),
+            uncertainty=float(data.get('uncertainty', 1.0)),
+            calibration_date=data.get('calibration_date') or None,
+            calibration_org=data.get('calibration_org', ''),
+            status=data.get('status', 'valid'),
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': '유속계가 등록되었습니다.',
+            'meter': {
+                'id': meter.id,
+                'meter_id': meter.meter_id,
+                'type': meter.meter_type,
+                'a': meter.coef_a,
+                'b': meter.coef_b,
+                'range': meter.range_display,
+                'range_min': meter.range_min,
+                'range_max': meter.range_max,
+                'uncertainty': meter.uncertainty,
+                'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
+                'calibrationOrg': meter.calibration_org,
+                'status': meter.status,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def api_meters_update(request, meter_id):
+    """유속계 수정 API"""
+    from .models import Meter
+    import json
+
+    try:
+        meter = Meter.objects.get(pk=meter_id)
+        data = json.loads(request.body)
+
+        meter.meter_id = data.get('meter_id', meter.meter_id)
+        meter.meter_type = data.get('type', meter.meter_type)
+        meter.coef_a = float(data.get('a', meter.coef_a))
+        meter.coef_b = float(data.get('b', meter.coef_b))
+        meter.range_min = float(data.get('range_min', meter.range_min))
+        meter.range_max = float(data.get('range_max', meter.range_max))
+        meter.uncertainty = float(data.get('uncertainty', meter.uncertainty))
+        if 'calibration_date' in data:
+            meter.calibration_date = data['calibration_date'] or None
+        if 'calibration_org' in data:
+            meter.calibration_org = data['calibration_org']
+        if 'status' in data:
+            meter.status = data['status']
+
+        meter.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': '유속계가 수정되었습니다.',
+            'meter': {
+                'id': meter.id,
+                'meter_id': meter.meter_id,
+                'type': meter.meter_type,
+                'a': meter.coef_a,
+                'b': meter.coef_b,
+                'range': meter.range_display,
+                'range_min': meter.range_min,
+                'range_max': meter.range_max,
+                'uncertainty': meter.uncertainty,
+                'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
+                'calibrationOrg': meter.calibration_org,
+                'status': meter.status,
+            }
+        })
+    except Meter.DoesNotExist:
+        return JsonResponse({'error': '유속계를 찾을 수 없습니다.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def api_meters_delete(request, meter_id):
+    """유속계 삭제 API"""
+    from .models import Meter
+
+    try:
+        meter = Meter.objects.get(pk=meter_id)
+        meter.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': '유속계가 삭제되었습니다.',
+        })
+    except Meter.DoesNotExist:
+        return JsonResponse({'error': '유속계를 찾을 수 없습니다.'}, status=404)

@@ -276,3 +276,66 @@ class MeasurementSession(models.Model):
         loc = self.station_name or '미지정'
         date_str = self.measurement_date.strftime('%Y-%m-%d') if self.measurement_date else '미지정'
         return f"{self.user} - {loc} ({date_str}) #{self.session_number}"
+
+
+class Meter(models.Model):
+    """유속계 검정 정보"""
+    METER_TYPE_CHOICES = [
+        ('propeller', '프로펠러형'),
+        ('electronic', '전자식'),
+    ]
+
+    STATUS_CHOICES = [
+        ('valid', '유효'),
+        ('expiring', '만료 임박'),
+        ('expired', '만료'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='meters',
+        verbose_name='소유자'
+    )
+
+    meter_id = models.CharField(max_length=50, verbose_name='유속계 번호')
+    meter_type = models.CharField(max_length=20, choices=METER_TYPE_CHOICES, default='propeller', verbose_name='종류')
+
+    # 검정식 계수: V = a + b * (N/T)
+    coef_a = models.FloatField(default=0.0, verbose_name='시동유속 a (m/s)')
+    coef_b = models.FloatField(default=1.0, verbose_name='검정상수 b')
+
+    # 유효 범위
+    range_min = models.FloatField(default=0.0, verbose_name='최소 유속 (m/s)')
+    range_max = models.FloatField(default=6.0, verbose_name='최대 유속 (m/s)')
+
+    # 검정 정보
+    uncertainty = models.FloatField(default=1.0, verbose_name='검정 불확실도 (%)')
+    calibration_date = models.DateField(null=True, blank=True, verbose_name='검정일')
+    calibration_org = models.CharField(max_length=100, blank=True, verbose_name='검정기관')
+
+    # 상태
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='valid', verbose_name='상태')
+
+    # 메타
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '유속계'
+        verbose_name_plural = '유속계'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.meter_id} ({self.get_meter_type_display()})"
+
+    @property
+    def range_display(self):
+        return f"{self.range_min:.2f}-{self.range_max:.1f} m/s"
+
+    def calculate_velocity(self, n, t):
+        """회전수와 시간으로 유속 계산: V = a + b * (N/T)"""
+        if t <= 0:
+            return 0
+        return self.coef_a + self.coef_b * (n / t)

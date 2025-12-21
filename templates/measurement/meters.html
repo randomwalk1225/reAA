@@ -22,6 +22,26 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Meters List -->
         <div class="lg:col-span-2 space-y-4">
+            <!-- Loading State -->
+            <div x-show="loading" class="text-center py-8 text-gray-500">
+                <svg class="animate-spin h-8 w-8 mx-auto text-primary-600 mb-2" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p>유속계 목록을 불러오는 중...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loading && meters.length === 0" class="text-center py-12 text-gray-500 bg-white rounded-xl shadow-sm border">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                <p class="mb-2">등록된 유속계가 없습니다</p>
+                <button @click="showAddModal = true" class="text-primary-600 hover:text-primary-700 font-medium">
+                    새 유속계 등록하기
+                </button>
+            </div>
+
             <template x-for="meter in meters" :key="meter.id">
                 <div class="bg-white rounded-xl shadow-sm border p-4 cursor-pointer transition-all"
                      :class="selectedMeter?.id === meter.id ? 'ring-2 ring-primary-500' : 'hover:shadow-md'"
@@ -38,7 +58,7 @@
                                 </svg>
                             </div>
                             <div>
-                                <p class="font-semibold text-gray-900" x-text="meter.id"></p>
+                                <p class="font-semibold text-gray-900" x-text="meter.meter_id"></p>
                                 <p class="text-sm text-gray-500" x-text="meter.type === 'propeller' ? '프로펠러형' : '전자식'"></p>
                             </div>
                         </div>
@@ -47,7 +67,7 @@
                                   :class="meter.status === 'valid' ? 'bg-green-100 text-green-800' : meter.status === 'expiring' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'">
                                 <span x-text="meter.status === 'valid' ? '유효' : meter.status === 'expiring' ? '만료 임박' : '만료'"></span>
                             </span>
-                            <p class="text-xs text-gray-500 mt-1">검정일: <span x-text="meter.calibrationDate"></span></p>
+                            <p class="text-xs text-gray-500 mt-1">검정일: <span x-text="meter.calibrationDate || '-'"></span></p>
                         </div>
                     </div>
 
@@ -74,7 +94,7 @@
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm text-gray-500 mb-1">유속계 번호</label>
-                            <p class="font-semibold text-gray-900" x-text="selectedMeter.id"></p>
+                            <p class="font-semibold text-gray-900" x-text="selectedMeter.meter_id"></p>
                         </div>
 
                         <div>
@@ -113,11 +133,11 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm text-gray-500 mb-1">검정일</label>
-                                <p class="text-gray-900" x-text="selectedMeter.calibrationDate"></p>
+                                <p class="text-gray-900" x-text="selectedMeter.calibrationDate || '-'"></p>
                             </div>
                             <div>
                                 <label class="block text-sm text-gray-500 mb-1">검정기관</label>
-                                <p class="text-gray-900" x-text="selectedMeter.calibrationOrg"></p>
+                                <p class="text-gray-900" x-text="selectedMeter.calibrationOrg || '-'"></p>
                             </div>
                         </div>
 
@@ -158,7 +178,7 @@
                 <form @submit.prevent="addMeter" class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">유속계 번호 *</label>
-                        <input type="text" x-model="newMeter.id" required placeholder="예: PROP-003"
+                        <input type="text" x-model="newMeter.meter_id" required placeholder="예: PROP-003"
                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
                     </div>
 
@@ -184,10 +204,17 @@
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">검정일</label>
-                        <input type="date" x-model="newMeter.calibrationDate"
-                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">검정일</label>
+                            <input type="date" x-model="newMeter.calibrationDate"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">검정기관</label>
+                            <input type="text" x-model="newMeter.calibrationOrg" placeholder="예: 국립기상과학원"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        </div>
                     </div>
 
                     <div class="flex gap-3 pt-4">
@@ -195,9 +222,10 @@
                                 class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
                             취소
                         </button>
-                        <button type="submit"
-                                class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-                            등록
+                        <button type="submit" :disabled="saving"
+                                class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                            <span x-show="!saving">등록</span>
+                            <span x-show="saving">저장 중...</span>
                         </button>
                     </div>
                 </form>
@@ -213,39 +241,97 @@ function metersManager() {
     return {
         showAddModal: false,
         selectedMeter: null,
-        newMeter: { id: '', type: 'propeller', a: '', b: '', calibrationDate: '' },
-        meters: [
-            { id: 'PROP-001', type: 'propeller', a: 0.0012, b: 0.2534, range: '0.03-6.0 m/s', uncertainty: 1.0, calibrationDate: '2024-03-15', calibrationOrg: '국립기상과학원', status: 'valid' },
-            { id: 'PROP-002', type: 'propeller', a: 0.0018, b: 0.2489, range: '0.05-5.5 m/s', uncertainty: 1.2, calibrationDate: '2023-11-20', calibrationOrg: '국립기상과학원', status: 'expiring' },
-            { id: 'ELEC-001', type: 'electronic', a: 0.0010, b: 1.0000, range: '0.00-10.0 m/s', uncertainty: 0.8, calibrationDate: '2024-01-10', calibrationOrg: '한국표준과학연구원', status: 'valid' },
-        ],
+        loading: false,
+        saving: false,
+        newMeter: { meter_id: '', type: 'propeller', a: 0.0012, b: 0.2534, calibrationDate: '', calibrationOrg: '', range_min: 0.03, range_max: 6.0, uncertainty: 1.0 },
+        meters: [],
+
+        async init() {
+            await this.loadMeters();
+        },
+
+        async loadMeters() {
+            this.loading = true;
+            try {
+                const response = await fetch('/measurement/api/meters/');
+                const data = await response.json();
+                if (data.success) {
+                    this.meters = data.meters;
+                }
+            } catch (e) {
+                console.error('Failed to load meters:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
 
         selectMeter(meter) {
             this.selectedMeter = meter;
         },
 
-        addMeter() {
-            if (this.newMeter.id) {
-                this.meters.push({
-                    ...this.newMeter,
-                    range: '0.03-6.0 m/s',
-                    uncertainty: 1.0,
-                    calibrationOrg: '-',
-                    status: 'valid'
+        async addMeter() {
+            if (!this.newMeter.meter_id) {
+                alert('유속계 번호를 입력하세요.');
+                return;
+            }
+            if (this.saving) return;
+            this.saving = true;
+
+            try {
+                const response = await fetch('/measurement/api/meters/create/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        meter_id: this.newMeter.meter_id,
+                        type: this.newMeter.type,
+                        a: parseFloat(this.newMeter.a) || 0,
+                        b: parseFloat(this.newMeter.b) || 1,
+                        calibration_date: this.newMeter.calibrationDate || null,
+                        calibration_org: this.newMeter.calibrationOrg || '',
+                        range_min: parseFloat(this.newMeter.range_min) || 0,
+                        range_max: parseFloat(this.newMeter.range_max) || 6.0,
+                        uncertainty: parseFloat(this.newMeter.uncertainty) || 1.0,
+                    })
                 });
-                this.newMeter = { id: '', type: 'propeller', a: '', b: '', calibrationDate: '' };
-                this.showAddModal = false;
+                const data = await response.json();
+                if (data.success) {
+                    this.meters.push(data.meter);
+                    this.newMeter = { meter_id: '', type: 'propeller', a: 0.0012, b: 0.2534, calibrationDate: '', calibrationOrg: '', range_min: 0.03, range_max: 6.0, uncertainty: 1.0 };
+                    this.showAddModal = false;
+                } else {
+                    alert(data.error || '저장에 실패했습니다.');
+                }
+            } catch (e) {
+                console.error('Failed to add meter:', e);
+                alert('저장에 실패했습니다.');
+            } finally {
+                this.saving = false;
             }
         },
 
         editMeter() {
-            console.log('Edit:', this.selectedMeter);
+            // TODO: 수정 모달 구현
+            alert('수정 기능은 추후 구현 예정입니다.');
         },
 
-        deleteMeter() {
-            if (confirm('정말 삭제하시겠습니까?')) {
-                this.meters = this.meters.filter(m => m.id !== this.selectedMeter.id);
-                this.selectedMeter = null;
+        async deleteMeter() {
+            if (!this.selectedMeter) return;
+            if (!confirm('정말 삭제하시겠습니까?')) return;
+
+            try {
+                const response = await fetch(`/measurement/api/meters/${this.selectedMeter.id}/delete/`, {
+                    method: 'DELETE',
+                });
+                const data = await response.json();
+                if (data.success) {
+                    this.meters = this.meters.filter(m => m.id !== this.selectedMeter.id);
+                    this.selectedMeter = null;
+                } else {
+                    alert(data.error || '삭제에 실패했습니다.');
+                }
+            } catch (e) {
+                console.error('Failed to delete meter:', e);
+                alert('삭제에 실패했습니다.');
             }
         }
     }

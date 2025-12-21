@@ -65,4 +65,10 @@ urlpatterns = [
 
     # 개발용: 모의 데이터 생성
     path('api/dev/create-mock-data/', views.api_create_mock_data, name='api_create_mock_data'),
+
+    # 유속계 API
+    path('api/meters/', views.api_meters_list, name='api_meters_list'),
+    path('api/meters/create/', views.api_meters_create, name='api_meters_create'),
+    path('api/meters/<int:meter_id>/update/', views.api_meters_update, name='api_meters_update'),
+    path('api/meters/<int:meter_id>/delete/', views.api_meters_delete, name='api_meters_delete'),
 ]
