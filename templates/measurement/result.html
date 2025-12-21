@@ -347,6 +347,7 @@ function resultPage() {
         isSaved: false,
         showToast: false,
         toastMessage: '',
+        _saveLock: false,  // 동기적 잠금
 
         // 서버에서 전달된 데이터 (Django template에서 주입)
         sessionId: {{ session_id|default:"null" }},
@@ -358,7 +359,9 @@ function resultPage() {
         uncertainty: {{ uncertainty|default:"0" }},
 
         async saveResult() {
-            if (this.isSaving || this.isSaved) return;
+            // 동기적 잠금 체크 (race condition 방지)
+            if (this._saveLock || this.isSaving || this.isSaved) return;
+            this._saveLock = true;  // 즉시 잠금
 
             this.isSaving = true;
             try {
@@ -400,6 +403,10 @@ function resultPage() {
                 alert('저장 중 오류가 발생했습니다.');
             } finally {
                 this.isSaving = false;
+                // 에러 시에만 잠금 해제 (성공 시 isSaved=true로 유지)
+                if (!this.isSaved) {
+                    this._saveLock = false;
+                }
             }
         },
 

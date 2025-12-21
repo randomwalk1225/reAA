@@ -1444,6 +1444,9 @@ function dataInputGrid() {
         },
 
         async calculate() {
+            // 중복 클릭 방지
+            if (this.isSaving) return;
+
             // 1. 먼저 데이터 저장 (세션 생성/업데이트)
             this.isSaving = true;
             try {

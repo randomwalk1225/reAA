@@ -1533,8 +1533,10 @@ def api_result_save(request):
     중복 저장 방지:
     - session_id가 있으면 해당 세션만 업데이트
     - session_id가 없으면 동일 데이터 중복 체크 후 저장
+    - 트랜잭션 + select_for_update로 race condition 방지
     """
     from .models import MeasurementSession
+    from django.db import transaction
 
     try:
         data = json.loads(request.body)
@@ -1557,28 +1559,29 @@ def api_result_save(request):
 
         # session_id가 있으면 해당 세션만 업데이트 (중복 생성 방지)
         if session_id:
-            try:
-                session = MeasurementSession.objects.get(pk=session_id)
-                # 기존 세션 업데이트 - 결과값 저장
-                session.station_name = station_name or session.station_name
-                if parsed_date:
-                    session.measurement_date = parsed_date
-                session.estimated_discharge = discharge
-                session.total_area = area
-                if not session.setup_data:
-                    session.setup_data = {}
-                session.setup_data['final_discharge'] = discharge
-                session.setup_data['final_uncertainty'] = uncertainty
-                session.setup_data['final_avg_velocity'] = avg_velocity
-                session.save()
+            with transaction.atomic():
+                try:
+                    session = MeasurementSession.objects.select_for_update().get(pk=session_id)
+                    # 기존 세션 업데이트 - 결과값 저장
+                    session.station_name = station_name or session.station_name
+                    if parsed_date:
+                        session.measurement_date = parsed_date
+                    session.estimated_discharge = discharge
+                    session.total_area = area
+                    if not session.setup_data:
+                        session.setup_data = {}
+                    session.setup_data['final_discharge'] = discharge
+                    session.setup_data['final_uncertainty'] = uncertainty
+                    session.setup_data['final_avg_velocity'] = avg_velocity
+                    session.save()
 
-                return JsonResponse({
-                    'success': True,
-                    'session_id': session.pk,
-                    'message': '결과가 저장되었습니다.',
-                })
-            except MeasurementSession.DoesNotExist:
-                pass  # session_id가 유효하지 않으면 아래에서 중복 체크 후 처리
+                    return JsonResponse({
+                        'success': True,
+                        'session_id': session.pk,
+                        'message': '결과가 저장되었습니다.',
+                    })
+                except MeasurementSession.DoesNotExist:
+                    pass  # session_id가 유효하지 않으면 아래에서 중복 체크 후 처리
 
         # 사용자 또는 세션키로 식별
         user = request.user if request.user.is_authenticated else None
@@ -1587,36 +1590,38 @@ def api_result_save(request):
             request.session.create()
             session_key = request.session.session_key
 
-        # 중복 체크: 동일 관측소 + 날짜 + 유량값이 있으면 기존 세션 반환
-        if station_name and parsed_date and discharge:
-            existing = MeasurementSession.objects.filter(
+        # 트랜잭션 내에서 중복 체크 및 생성 (race condition 방지)
+        with transaction.atomic():
+            # 중복 체크: 동일 관측소 + 날짜 + 유량값이 있으면 기존 세션 반환
+            if station_name and parsed_date and discharge:
+                existing = MeasurementSession.objects.select_for_update().filter(
+                    station_name=station_name,
+                    measurement_date=parsed_date,
+                    estimated_discharge=discharge
+                ).first()
+
+                if existing:
+                    return JsonResponse({
+                        'success': True,
+                        'session_id': existing.pk,
+                        'message': '이미 저장된 데이터입니다.',
+                        'duplicate': True,
+                    })
+
+            # 새 세션 생성
+            session = MeasurementSession.objects.create(
+                user=user,
+                session_key=session_key,
                 station_name=station_name,
                 measurement_date=parsed_date,
-                estimated_discharge=discharge
-            ).first()
-
-            if existing:
-                return JsonResponse({
-                    'success': True,
-                    'session_id': existing.pk,
-                    'message': '이미 저장된 데이터입니다.',
-                    'duplicate': True,
-                })
-
-        # 새 세션 생성
-        session = MeasurementSession.objects.create(
-            user=user,
-            session_key=session_key,
-            station_name=station_name,
-            measurement_date=parsed_date,
-            estimated_discharge=discharge,
-            total_area=area,
-            setup_data={
-                'final_discharge': discharge,
-                'final_uncertainty': uncertainty,
-                'final_avg_velocity': avg_velocity,
-            }
-        )
+                estimated_discharge=discharge,
+                total_area=area,
+                setup_data={
+                    'final_discharge': discharge,
+                    'final_uncertainty': uncertainty,
+                    'final_avg_velocity': avg_velocity,
+                }
+            )
 
         return JsonResponse({
             'success': True,
