@@ -2006,3 +2006,136 @@ def api_meters_delete(request, meter_id):
         })
     except Meter.DoesNotExist:
         return JsonResponse({'error': '유속계를 찾을 수 없습니다.'}, status=404)
+
+
+# ============================================================
+# 분석결과표 API
+# ============================================================
+
+def api_analysis_summary(request):
+    """분석결과표 API - 측정 세션 종합 요약"""
+    from .models import MeasurementSession
+
+    # 필터 파라미터
+    station_name = request.GET.get('station', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+
+    # 쿼리 생성
+    sessions = MeasurementSession.objects.all()
+
+    if request.user.is_authenticated:
+        sessions = sessions.filter(user=request.user)
+
+    if station_name:
+        sessions = sessions.filter(station_name__icontains=station_name)
+
+    if start_date:
+        sessions = sessions.filter(measurement_date__gte=start_date)
+
+    if end_date:
+        sessions = sessions.filter(measurement_date__lte=end_date)
+
+    # 측정일 기준 정렬
+    sessions = sessions.order_by('measurement_date', 'station_name')
+
+    # 분석 결과 계산 및 저장
+    results = []
+    for session in sessions:
+        # 아직 계산되지 않은 경우 계산
+        if session.wetted_perimeter is None and session.rows_data:
+            session.calculate_analysis_results()
+            session.save()
+
+        results.append(session.to_summary_dict())
+
+    return JsonResponse({
+        'success': True,
+        'count': len(results),
+        'results': results,
+    })
+
+
+def api_analysis_recalculate(request, session_id):
+    """특정 세션의 분석 결과 재계산"""
+    from .models import MeasurementSession
+
+    try:
+        session = MeasurementSession.objects.get(pk=session_id)
+
+        # 재계산
+        session.calculate_analysis_results()
+        session.save()
+
+        return JsonResponse({
+            'success': True,
+            'result': session.to_summary_dict(),
+        })
+    except MeasurementSession.DoesNotExist:
+        return JsonResponse({'error': '세션을 찾을 수 없습니다.'}, status=404)
+
+
+def api_analysis_export(request):
+    """분석결과표 Excel 다운로드"""
+    import csv
+    from django.http import HttpResponse
+    from .models import MeasurementSession
+
+    # 필터 (api_analysis_summary와 동일)
+    station_name = request.GET.get('station', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+
+    sessions = MeasurementSession.objects.all()
+
+    if request.user.is_authenticated:
+        sessions = sessions.filter(user=request.user)
+
+    if station_name:
+        sessions = sessions.filter(station_name__icontains=station_name)
+    if start_date:
+        sessions = sessions.filter(measurement_date__gte=start_date)
+    if end_date:
+        sessions = sessions.filter(measurement_date__lte=end_date)
+
+    sessions = sessions.order_by('measurement_date', 'station_name')
+
+    # CSV 응답 생성
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="analysis_summary.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        '측정일', '지점명', '회차', '위치', '수위(m)',
+        '수면폭(m)', '단면적(m²)', '윤변(m)', '동수반경(m)',
+        '평균유속(m/s)', '유량(m³/s)', '유속측선수', '불확실도(%)', '등급'
+    ])
+
+    for session in sessions:
+        if session.wetted_perimeter is None and session.rows_data:
+            session.calculate_analysis_results()
+            session.save()
+
+        writer.writerow([
+            session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '',
+            session.station_name,
+            session.session_number,
+            session.setup_data.get('location_desc', ''),
+            round(session.stage, 2) if session.stage else '',
+            round(session.total_width, 2) if session.total_width else '',
+            round(session.total_area, 4) if session.total_area else '',
+            round(session.wetted_perimeter, 4) if session.wetted_perimeter else '',
+            round(session.hydraulic_radius, 4) if session.hydraulic_radius else '',
+            round(session.mean_velocity, 6) if session.mean_velocity else '',
+            round(session.estimated_discharge, 6) if session.estimated_discharge else '',
+            session.velocity_verticals or '',
+            round(session.uncertainty, 2) if session.uncertainty else '',
+            session.quality_grade or '',
+        ])
+
+    return response
+
+
+def analysis_summary_view(request):
+    """분석결과표 페이지"""
+    return render(request, 'measurement/analysis_summary.html')

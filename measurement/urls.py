@@ -71,4 +71,10 @@ urlpatterns = [
     path('api/meters/create/', views.api_meters_create, name='api_meters_create'),
     path('api/meters/<int:meter_id>/update/', views.api_meters_update, name='api_meters_update'),
     path('api/meters/<int:meter_id>/delete/', views.api_meters_delete, name='api_meters_delete'),
+
+    # 분석결과표
+    path('analysis/', views.analysis_summary_view, name='analysis_summary'),
+    path('api/analysis/summary/', views.api_analysis_summary, name='api_analysis_summary'),
+    path('api/analysis/<int:session_id>/recalculate/', views.api_analysis_recalculate, name='api_analysis_recalculate'),
+    path('api/analysis/export/', views.api_analysis_export, name='api_analysis_export'),
 ]

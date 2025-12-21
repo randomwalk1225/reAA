@@ -260,6 +260,15 @@ class MeasurementSession(models.Model):
     max_depth = models.FloatField(null=True, blank=True, verbose_name='최대수심(m)')
     total_area = models.FloatField(null=True, blank=True, verbose_name='단면적(m²)')
 
+    # 추가 계산 결과 (분석결과표용)
+    wetted_perimeter = models.FloatField(null=True, blank=True, verbose_name='윤변(m)')
+    hydraulic_radius = models.FloatField(null=True, blank=True, verbose_name='동수반경(m)')
+    mean_velocity = models.FloatField(null=True, blank=True, verbose_name='평균유속(m/s)')
+    velocity_verticals = models.IntegerField(null=True, blank=True, verbose_name='유속측선수')
+    stage = models.FloatField(null=True, blank=True, verbose_name='수위(m)')
+    uncertainty = models.FloatField(null=True, blank=True, verbose_name='불확실도(%)')
+    quality_grade = models.CharField(max_length=5, blank=True, verbose_name='등급')  # E, G, F, P
+
     # 메타
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
@@ -276,6 +285,121 @@ class MeasurementSession(models.Model):
         loc = self.station_name or '미지정'
         date_str = self.measurement_date.strftime('%Y-%m-%d') if self.measurement_date else '미지정'
         return f"{self.user} - {loc} ({date_str}) #{self.session_number}"
+
+    def calculate_analysis_results(self):
+        """측선 데이터로 분석결과표 항목 계산"""
+        import math
+
+        rows = self.rows_data or []
+        if not rows:
+            return
+
+        # 유효한 데이터만 필터링
+        valid_rows = [r for r in rows if r.get('depth') and float(r.get('depth', 0)) > 0]
+        if not valid_rows:
+            return
+
+        # 거리, 수심, 유속 추출
+        distances = [float(r.get('distance', 0)) for r in valid_rows]
+        depths = [float(r.get('depth', 0)) for r in valid_rows]
+        velocities = [float(r.get('velocity', 0)) for r in valid_rows]
+
+        # 1. 수면폭 (총폭)
+        if distances:
+            self.total_width = max(distances) - min(distances)
+
+        # 2. 최대수심
+        if depths:
+            self.max_depth = max(depths)
+
+        # 3. 단면적 (중앙단면법)
+        total_area = 0
+        for i, row in enumerate(valid_rows):
+            d = depths[i]
+            # 폭 계산 (중앙단면법)
+            if i == 0:
+                w = (distances[1] - distances[0]) / 2 if len(distances) > 1 else 0
+            elif i == len(valid_rows) - 1:
+                w = (distances[i] - distances[i-1]) / 2
+            else:
+                w = (distances[i+1] - distances[i-1]) / 2
+            total_area += w * d
+        self.total_area = total_area
+
+        # 4. 윤변 (wetted perimeter) - 수심 변화를 따라가는 경로 길이
+        wetted_perimeter = 0
+        for i in range(len(valid_rows)):
+            if i == 0:
+                # 시작점 수직 깊이
+                wetted_perimeter += depths[i]
+            else:
+                # 이전 점과의 거리 (바닥 따라)
+                dx = distances[i] - distances[i-1]
+                dy = depths[i] - depths[i-1]
+                wetted_perimeter += math.sqrt(dx**2 + dy**2)
+        # 마지막 점 수직
+        if depths:
+            wetted_perimeter += depths[-1]
+        self.wetted_perimeter = wetted_perimeter
+
+        # 5. 동수반경 = 단면적 / 윤변
+        if self.wetted_perimeter and self.wetted_perimeter > 0:
+            self.hydraulic_radius = self.total_area / self.wetted_perimeter
+
+        # 6. 유속 측선 수 (유속 > 0인 측선)
+        self.velocity_verticals = len([v for v in velocities if v and v > 0])
+
+        # 7. 평균유속 = 유량 / 단면적
+        if self.estimated_discharge and self.total_area and self.total_area > 0:
+            self.mean_velocity = self.estimated_discharge / self.total_area
+        elif velocities:
+            # 또는 유속 평균
+            valid_v = [v for v in velocities if v and v > 0]
+            if valid_v:
+                self.mean_velocity = sum(valid_v) / len(valid_v)
+
+        # 8. 불확실도 계산 (ISO 748 간이 방식)
+        n = self.velocity_verticals or 1
+        if n >= 20:
+            u_m = 5  # 측선 20개 이상
+        elif n >= 10:
+            u_m = 7.5
+        elif n >= 5:
+            u_m = 10
+        else:
+            u_m = 15  # 측선 5개 미만
+        self.uncertainty = u_m
+
+        # 9. 등급 판정
+        if self.uncertainty <= 5:
+            self.quality_grade = 'E'  # Excellent
+        elif self.uncertainty <= 8:
+            self.quality_grade = 'G'  # Good
+        elif self.uncertainty <= 12:
+            self.quality_grade = 'F'  # Fair
+        else:
+            self.quality_grade = 'P'  # Poor
+
+    def to_summary_dict(self):
+        """분석결과표용 딕셔너리 반환"""
+        return {
+            'id': self.id,
+            'station_name': self.station_name,
+            'measurement_date': self.measurement_date.strftime('%Y-%m-%d') if self.measurement_date else None,
+            'session_number': self.session_number,
+            'location': self.setup_data.get('location_desc', ''),
+            'stage': self.stage,
+            'total_width': round(self.total_width, 2) if self.total_width else None,
+            'total_area': round(self.total_area, 4) if self.total_area else None,
+            'wetted_perimeter': round(self.wetted_perimeter, 4) if self.wetted_perimeter else None,
+            'hydraulic_radius': round(self.hydraulic_radius, 4) if self.hydraulic_radius else None,
+            'mean_velocity': round(self.mean_velocity, 6) if self.mean_velocity else None,
+            'discharge': round(self.estimated_discharge, 6) if self.estimated_discharge else None,
+            'velocity_verticals': self.velocity_verticals,
+            'uncertainty': round(self.uncertainty, 2) if self.uncertainty else None,
+            'quality_grade': self.quality_grade,
+            'max_depth': round(self.max_depth, 2) if self.max_depth else None,
+        }
 
 
 class Meter(models.Model):

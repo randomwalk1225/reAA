@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}분석결과표 - 유량측정 시스템{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="analysisSummary()">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">분석결과표</h1>
+            <p class="mt-1 text-gray-600">측정 세션 종합 분석 결과</p>
+        </div>
+        <div class="mt-4 sm:mt-0 flex gap-2">
+            <button type="button" @click="exportCSV()"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                CSV 다운로드
+            </button>
+            <button type="button" @click="recalculateAll()"
+                    class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                전체 재계산
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border p-4 mb-6">
+        <div class="flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+                <input type="text" x-model="filters.station" @input.debounce.300ms="loadData()"
+                       placeholder="지점명 검색..."
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+            </div>
+            <div class="flex gap-2 items-center">
+                <input type="date" x-model="filters.startDate" @change="loadData()"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                <span class="text-gray-500">~</span>
+                <input type="date" x-model="filters.endDate" @change="loadData()"
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+            </div>
+            <button type="button" @click="clearFilters()"
+                    class="px-4 py-2 text-gray-600 hover:text-gray-900">
+                초기화
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-sm text-gray-500">총 측정 횟수</p>
+            <p class="text-2xl font-bold text-gray-900" x-text="results.length"></p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-sm text-gray-500">평균 유량</p>
+            <p class="text-2xl font-bold text-primary-600">
+                <span x-text="avgDischarge.toFixed(4)"></span>
+                <span class="text-sm font-normal text-gray-500">m³/s</span>
+            </p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-sm text-gray-500">평균 불확실도</p>
+            <p class="text-2xl font-bold text-gray-900">
+                <span x-text="avgUncertainty.toFixed(1)"></span>
+                <span class="text-sm font-normal text-gray-500">%</span>
+            </p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border p-4">
+            <p class="text-sm text-gray-500">등급 분포</p>
+            <div class="flex gap-1 mt-1">
+                <span class="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded" x-text="'E:' + gradeCount.E"></span>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded" x-text="'G:' + gradeCount.G"></span>
+                <span class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded" x-text="'F:' + gradeCount.F"></span>
+                <span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded" x-text="'P:' + gradeCount.P"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-12">
+        <svg class="animate-spin h-8 w-8 mx-auto text-primary-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-2 text-gray-500">데이터를 불러오는 중...</p>
+    </div>
+
+    <!-- Results Table -->
+    <div x-show="!loading" class="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">측정일</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">지점명</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">수면폭(m)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">단면적(m²)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">윤변(m)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">동수반경(m)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">평균유속(m/s)</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">유량(m³/s)</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">측선수</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">불확실도</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">등급</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <template x-for="row in results" :key="row.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 whitespace-nowrap text-gray-900" x-text="row.measurement_date"></td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div>
+                                    <p class="font-medium text-gray-900" x-text="row.station_name"></p>
+                                    <p class="text-xs text-gray-500" x-text="row.location"></p>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-mono" x-text="row.total_width || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-mono" x-text="row.total_area || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-mono" x-text="row.wetted_perimeter || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-mono" x-text="row.hydraulic_radius || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-mono" x-text="row.mean_velocity || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-right font-semibold text-primary-600" x-text="row.discharge || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center" x-text="row.velocity_verticals || '-'"></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                <span x-text="row.uncertainty ? row.uncertainty + '%' : '-'"></span>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-green-100 text-green-800': row.quality_grade === 'E',
+                                          'bg-blue-100 text-blue-800': row.quality_grade === 'G',
+                                          'bg-yellow-100 text-yellow-800': row.quality_grade === 'F',
+                                          'bg-red-100 text-red-800': row.quality_grade === 'P',
+                                          'bg-gray-100 text-gray-800': !row.quality_grade
+                                      }"
+                                      x-text="row.quality_grade || '-'">
+                                </span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="results.length === 0 && !loading" class="text-center py-12">
+            <svg class="w-12 h-12 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="mt-2 text-gray-500">측정 데이터가 없습니다</p>
+            <a href="{% url 'measurement:new' %}" class="mt-4 inline-flex items-center text-primary-600 hover:text-primary-700">
+                새 측정 시작하기 &rarr;
+            </a>
+        </div>
+    </div>
+
+    <!-- Grade Legend -->
+    <div class="mt-4 text-sm text-gray-500">
+        <span class="font-medium">등급 기준 (ISO 748):</span>
+        <span class="ml-2">E (Excellent) ≤5%</span>
+        <span class="mx-1">|</span>
+        <span>G (Good) ≤8%</span>
+        <span class="mx-1">|</span>
+        <span>F (Fair) ≤12%</span>
+        <span class="mx-1">|</span>
+        <span>P (Poor) >12%</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function analysisSummary() {
+    return {
+        loading: true,
+        results: [],
+        filters: {
+            station: '',
+            startDate: '',
+            endDate: ''
+        },
+
+        get avgDischarge() {
+            const valid = this.results.filter(r => r.discharge);
+            if (valid.length === 0) return 0;
+            return valid.reduce((sum, r) => sum + r.discharge, 0) / valid.length;
+        },
+
+        get avgUncertainty() {
+            const valid = this.results.filter(r => r.uncertainty);
+            if (valid.length === 0) return 0;
+            return valid.reduce((sum, r) => sum + r.uncertainty, 0) / valid.length;
+        },
+
+        get gradeCount() {
+            const counts = { E: 0, G: 0, F: 0, P: 0 };
+            this.results.forEach(r => {
+                if (r.quality_grade && counts.hasOwnProperty(r.quality_grade)) {
+                    counts[r.quality_grade]++;
+                }
+            });
+            return counts;
+        },
+
+        async init() {
+            await this.loadData();
+        },
+
+        async loadData() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.filters.station) params.append('station', this.filters.station);
+                if (this.filters.startDate) params.append('start_date', this.filters.startDate);
+                if (this.filters.endDate) params.append('end_date', this.filters.endDate);
+
+                const response = await fetch(`/measurement/api/analysis/summary/?${params}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    this.results = data.results;
+                }
+            } catch (error) {
+                console.error('데이터 로드 실패:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        clearFilters() {
+            this.filters = { station: '', startDate: '', endDate: '' };
+            this.loadData();
+        },
+
+        exportCSV() {
+            const params = new URLSearchParams();
+            if (this.filters.station) params.append('station', this.filters.station);
+            if (this.filters.startDate) params.append('start_date', this.filters.startDate);
+            if (this.filters.endDate) params.append('end_date', this.filters.endDate);
+
+            window.location.href = `/measurement/api/analysis/export/?${params}`;
+        },
+
+        async recalculateAll() {
+            if (!confirm('모든 세션의 분석 결과를 재계산하시겠습니까?')) return;
+
+            this.loading = true;
+            try {
+                for (const row of this.results) {
+                    await fetch(`/measurement/api/analysis/${row.id}/recalculate/`);
+                }
+                await this.loadData();
+                alert('재계산이 완료되었습니다.');
+            } catch (error) {
+                console.error('재계산 실패:', error);
+                alert('재계산 중 오류가 발생했습니다.');
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
