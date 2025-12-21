@@ -43,65 +43,49 @@ def measurement_new(request):
 
 
 def measurement_detail(request, pk):
-    """측정 상세 (결과 보기)"""
-    # 샘플 데이터 (추후 DB 연동)
-    sample_data = {
-        1: {
-            'id': 1,
-            'station_name': '경주 대종천 하류보',
-            'date': '2025-05-01',
-            'discharge': 1.234,
-            'uncertainty': 4.2,
-            'uncertainty_abs': 0.052,
-            'area': 5.67,
-            'width': 10.5,
-            'avg_depth': 0.54,
-            'avg_velocity': 0.218,
-            'max_velocity': 0.312,
-            'min_velocity': 0.156,
-        },
-        2: {
-            'id': 2,
-            'station_name': '신태인 수위관측소',
-            'date': '2025-04-28',
-            'discharge': 15.67,
-            'uncertainty': 3.8,
-            'uncertainty_abs': 0.596,
-            'area': 42.5,
-            'width': 25.0,
-            'avg_depth': 1.70,
-            'avg_velocity': 0.369,
-            'max_velocity': 0.512,
-            'min_velocity': 0.234,
-        },
-        3: {
-            'id': 3,
-            'station_name': '평림천 관측소',
-            'date': '2025-04-25',
-            'discharge': 0.856,
-            'uncertainty': 5.1,
-            'uncertainty_abs': 0.044,
-            'area': 3.21,
-            'width': 8.0,
-            'avg_depth': 0.40,
-            'avg_velocity': 0.267,
-            'max_velocity': 0.345,
-            'min_velocity': 0.189,
-        },
+    """측정 상세 (결과 보기) - DB에서 데이터 로드"""
+    from .models import MeasurementSession
+
+    session = get_object_or_404(MeasurementSession, pk=pk)
+
+    # 세션에 rows_data가 있으면 계산 수행, 없으면 저장된 값 사용
+    if session.rows_data:
+        calibration = session.calibration_data or {'a': 0.0012, 'b': 0.2534}
+        result_data = calculate_discharge(session.rows_data, calibration)
+    else:
+        # rows_data가 없으면 저장된 값으로 표시
+        setup = session.setup_data or {}
+        result_data = {
+            'discharge': session.estimated_discharge or 0,
+            'area': session.total_area or 0,
+            'width': session.total_width or 0,
+            'avg_depth': session.max_depth or 0,
+            'avg_velocity': setup.get('final_avg_velocity', 0),
+            'max_velocity': 0,
+            'min_velocity': 0,
+            'uncertainty': setup.get('final_uncertainty', 0),
+            'uncertainty_abs': 0,
+            'verticals': [],
+        }
+        if result_data['discharge'] and result_data['uncertainty']:
+            result_data['uncertainty_abs'] = round(
+                result_data['discharge'] * result_data['uncertainty'] / 100, 3
+            )
+
+    # 세션 정보 추가
+    result_data['session_id'] = session.pk
+    result_data['station_name'] = session.station_name or ''
+    result_data['measurement_date'] = session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else ''
+    result_data['setup_data'] = session.setup_data or {}
+
+    # measurement 객체도 전달 (템플릿 호환성)
+    result_data['measurement'] = {
+        'id': session.pk,
+        'station_name': session.station_name,
+        'date': result_data['measurement_date'],
     }
-    measurement = sample_data.get(pk, sample_data[1])
-    return render(request, 'measurement/result.html', {
-        'measurement': measurement,
-        'discharge': measurement['discharge'],
-        'uncertainty': measurement['uncertainty'],
-        'uncertainty_abs': measurement['uncertainty_abs'],
-        'area': measurement['area'],
-        'width': measurement['width'],
-        'avg_depth': measurement['avg_depth'],
-        'avg_velocity': measurement['avg_velocity'],
-        'max_velocity': measurement['max_velocity'],
-        'min_velocity': measurement['min_velocity'],
-    })
+
+    return render(request, 'measurement/result.html', result_data)
 
 
 def measurement_edit(request, pk):
@@ -355,29 +339,55 @@ def meters(request):
 
 
 def export_excel(request):
-    """Excel 다운로드"""
+    """Excel 다운로드 - session_id로 DB에서 데이터 로드"""
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from .models import MeasurementSession
 
-    # 샘플 데이터 (추후 DB에서 조회)
-    data = {
-        'station_name': '경주 대종천 하류보',
-        'date': '2025-05-01',
-        'discharge': 1.234,
-        'uncertainty': 4.2,
-        'area': 5.67,
-        'avg_velocity': 0.218,
-        'rows': [
-            {'no': 1, 'distance': 0.0, 'depth': 0.00, 'velocity': 0.000, 'area': 0.000, 'discharge': 0.000, 'ratio': 0.0},
-            {'no': 2, 'distance': 1.5, 'depth': 0.45, 'velocity': 0.156, 'area': 0.338, 'discharge': 0.053, 'ratio': 4.3},
-            {'no': 3, 'distance': 3.0, 'depth': 0.72, 'velocity': 0.198, 'area': 0.540, 'discharge': 0.107, 'ratio': 8.7},
-            {'no': 4, 'distance': 4.5, 'depth': 1.20, 'velocity': 0.285, 'area': 0.900, 'discharge': 0.257, 'ratio': 20.8},
-            {'no': 5, 'distance': 6.0, 'depth': 1.35, 'velocity': 0.312, 'area': 1.013, 'discharge': 0.316, 'ratio': 25.6},
-            {'no': 6, 'distance': 7.5, 'depth': 0.85, 'velocity': 0.245, 'area': 0.638, 'discharge': 0.156, 'ratio': 12.7},
-            {'no': 7, 'distance': 9.0, 'depth': 0.50, 'velocity': 0.168, 'area': 0.375, 'discharge': 0.063, 'ratio': 5.1},
-            {'no': 8, 'distance': 10.5, 'depth': 0.00, 'velocity': 0.000, 'area': 0.000, 'discharge': 0.000, 'ratio': 0.0},
-        ]
-    }
+    session_id = request.GET.get('session_id')
+
+    if session_id:
+        try:
+            session = MeasurementSession.objects.get(pk=session_id)
+            calibration = session.calibration_data or {'a': 0.0012, 'b': 0.2534}
+
+            if session.rows_data:
+                result = calculate_discharge(session.rows_data, calibration)
+                rows = []
+                for v in result.get('verticals', []):
+                    rows.append({
+                        'no': v['id'],
+                        'distance': v['distance'],
+                        'depth': v['depth'],
+                        'velocity': round(v['velocity'], 3),
+                        'area': round(v.get('area', 0), 3),
+                        'discharge': round(v.get('discharge', 0), 3),
+                        'ratio': round(v.get('ratio', 0), 1),
+                    })
+                data = {
+                    'station_name': session.station_name or '미지정',
+                    'date': session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '-',
+                    'discharge': result['discharge'],
+                    'uncertainty': result['uncertainty'],
+                    'area': result['area'],
+                    'avg_velocity': result['avg_velocity'],
+                    'rows': rows,
+                }
+            else:
+                setup = session.setup_data or {}
+                data = {
+                    'station_name': session.station_name or '미지정',
+                    'date': session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '-',
+                    'discharge': session.estimated_discharge or 0,
+                    'uncertainty': setup.get('final_uncertainty', 0),
+                    'area': session.total_area or 0,
+                    'avg_velocity': setup.get('final_avg_velocity', 0),
+                    'rows': [],
+                }
+        except MeasurementSession.DoesNotExist:
+            return HttpResponse('세션을 찾을 수 없습니다.', status=404)
+    else:
+        return HttpResponse('session_id 파라미터가 필요합니다.', status=400)
 
     wb = Workbook()
     ws = wb.active
@@ -467,7 +477,7 @@ def export_excel(request):
 
 
 def export_pdf(request):
-    """PDF 출력"""
+    """PDF 출력 - session_id로 DB에서 데이터 로드"""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -475,27 +485,53 @@ def export_pdf(request):
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from .models import MeasurementSession
     import os
 
-    # 샘플 데이터 (추후 DB에서 조회)
-    data = {
-        'station_name': '경주 대종천 하류보',
-        'date': '2025-05-01',
-        'discharge': 1.234,
-        'uncertainty': 4.2,
-        'area': 5.67,
-        'avg_velocity': 0.218,
-        'rows': [
-            [1, 0.0, 0.00, 0.000, 0.000, 0.000, '0.0%'],
-            [2, 1.5, 0.45, 0.156, 0.338, 0.053, '4.3%'],
-            [3, 3.0, 0.72, 0.198, 0.540, 0.107, '8.7%'],
-            [4, 4.5, 1.20, 0.285, 0.900, 0.257, '20.8%'],
-            [5, 6.0, 1.35, 0.312, 1.013, 0.316, '25.6%'],
-            [6, 7.5, 0.85, 0.245, 0.638, 0.156, '12.7%'],
-            [7, 9.0, 0.50, 0.168, 0.375, 0.063, '5.1%'],
-            [8, 10.5, 0.00, 0.000, 0.000, 0.000, '0.0%'],
-        ]
-    }
+    session_id = request.GET.get('session_id')
+
+    if session_id:
+        try:
+            session = MeasurementSession.objects.get(pk=session_id)
+            calibration = session.calibration_data or {'a': 0.0012, 'b': 0.2534}
+
+            if session.rows_data:
+                result = calculate_discharge(session.rows_data, calibration)
+                rows = []
+                for v in result.get('verticals', []):
+                    rows.append([
+                        v['id'],
+                        v['distance'],
+                        round(v['depth'], 2),
+                        round(v['velocity'], 3),
+                        round(v.get('area', 0), 3),
+                        round(v.get('discharge', 0), 3),
+                        f"{round(v.get('ratio', 0), 1)}%",
+                    ])
+                data = {
+                    'station_name': session.station_name or '미지정',
+                    'date': session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '-',
+                    'discharge': result['discharge'],
+                    'uncertainty': result['uncertainty'],
+                    'area': result['area'],
+                    'avg_velocity': result['avg_velocity'],
+                    'rows': rows,
+                }
+            else:
+                setup = session.setup_data or {}
+                data = {
+                    'station_name': session.station_name or '미지정',
+                    'date': session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '-',
+                    'discharge': session.estimated_discharge or 0,
+                    'uncertainty': setup.get('final_uncertainty', 0),
+                    'area': session.total_area or 0,
+                    'avg_velocity': setup.get('final_avg_velocity', 0),
+                    'rows': [],
+                }
+        except MeasurementSession.DoesNotExist:
+            return HttpResponse('세션을 찾을 수 없습니다.', status=404)
+    else:
+        return HttpResponse('session_id 파라미터가 필요합니다.', status=400)
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=20*mm, bottomMargin=20*mm)
@@ -930,33 +966,52 @@ def api_rating_curves_by_station(request, station_id):
 
 
 def timeseries_detail(request, station_id):
-    """관측소별 시계열 상세"""
-    import random
-    from datetime import timedelta
+    """관측소별 시계열 상세 - DB에서 데이터 로드"""
+    from .models import Station, WaterLevelTimeSeries, RatingCurve
 
-    # 샘플 데이터 생성 (최근 30일)
-    base_date = datetime(2025, 5, 1)
-    sample_data = []
-    for i in range(30 * 24):  # 30일 x 24시간
-        dt = base_date - timedelta(hours=i)
-        h = 0.3 + 0.2 * (1 + 0.5 * (i % 24) / 24) + random.uniform(-0.05, 0.05)
-        q = 3.22 * ((h - 0.001) ** 1.941)
-        sample_data.append({
-            'timestamp': dt.strftime('%Y-%m-%d %H:%M'),
-            'stage': round(h, 3),
-            'discharge': round(q, 4),
+    station = get_object_or_404(Station, pk=station_id)
+
+    # 수위 시계열 데이터 조회 (최신순 1000개)
+    water_levels = WaterLevelTimeSeries.objects.filter(
+        station=station
+    ).order_by('-timestamp')[:1000]
+
+    total_count = WaterLevelTimeSeries.objects.filter(station=station).count()
+
+    # Rating Curve 조회 (가장 최신)
+    rating_curve = RatingCurve.objects.filter(station=station).order_by('-year').first()
+
+    # 시계열 데이터 변환
+    data = []
+    for wl in water_levels:
+        discharge = None
+        if rating_curve and wl.stage is not None:
+            # Q = a * (h - h0) ^ b
+            h_diff = wl.stage - rating_curve.coef_h0
+            if h_diff > 0:
+                discharge = round(rating_curve.coef_a * (h_diff ** rating_curve.coef_b), 4)
+
+        data.append({
+            'timestamp': wl.timestamp.strftime('%Y-%m-%d %H:%M'),
+            'stage': wl.stage,
+            'discharge': discharge,
         })
 
-    station = {
-        'id': station_id,
-        'name': '경주 대종천 하류보' if station_id == 1 else '신태인 수위관측소',
-        'rating_curve': 'Q = 3.22(h - 0.001)^1.941',
+    # Rating Curve 수식 생성
+    rating_curve_eq = None
+    if rating_curve:
+        rating_curve_eq = f"Q = {rating_curve.coef_a}(h - {rating_curve.coef_h0})^{rating_curve.coef_b}"
+
+    station_data = {
+        'id': station.pk,
+        'name': station.name,
+        'rating_curve': rating_curve_eq,
     }
 
     return render(request, 'measurement/timeseries_detail.html', {
-        'station': station,
-        'data': sample_data[:100],  # 최근 100개만
-        'total_count': len(sample_data),
+        'station': station_data,
+        'data': data[:100],  # 최근 100개만 템플릿에 전달
+        'total_count': total_count,
     })
 
 
