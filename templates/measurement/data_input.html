@@ -125,9 +125,39 @@
             <div>
                 <h1 class="text-xl font-bold text-gray-900">측정 데이터 입력</h1>
                 <div class="flex items-center gap-2 mt-1">
-                    <input type="text" x-model="stationName" @input="scheduleAutoSave"
-                           class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5"
-                           placeholder="관측소명 입력">
+                    <!-- 관측소명 자동완성 -->
+                    <div class="relative">
+                        <input type="text" x-model="stationName"
+                               @input="searchStations(); scheduleAutoSave()"
+                               @focus="searchStations()"
+                               @blur="hideStationDropdown()"
+                               @keydown.escape="showStationDropdown = false"
+                               @keydown.down.prevent="$refs.stationDropdown?.querySelector('div')?.focus()"
+                               class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5 min-w-[180px]"
+                               placeholder="관측소 검색..."
+                               autocomplete="off">
+                        <!-- 드롭다운 -->
+                        <div x-ref="stationDropdown"
+                             x-show="showStationDropdown && stationSearchResults.length > 0"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             class="absolute z-50 mt-1 w-72 bg-white rounded-lg shadow-lg border max-h-64 overflow-y-auto">
+                            <template x-for="station in stationSearchResults" :key="station.code">
+                                <div @mousedown.prevent="selectStation(station)"
+                                     class="px-3 py-2 hover:bg-primary-50 cursor-pointer border-b last:border-b-0 transition-colors">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-medium text-gray-900 text-sm" x-text="station.name"></span>
+                                        <span class="text-xs text-gray-400" x-text="station.code"></span>
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-xs text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded" x-text="station.river"></span>
+                                        <span class="text-xs text-gray-400" x-text="station.year ? station.year + '년~' : ''"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
                     <span class="text-gray-400">|</span>
                     <input type="date" x-model="measurementDate" @change="scheduleAutoSave"
                            class="text-sm text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-primary-500 focus:outline-none px-1 py-0.5">
@@ -742,6 +772,11 @@ function dataInputGrid() {
         historyItems: [],
         historyLoading: false,
 
+        // 관측소 자동완성
+        stationsList: [],
+        stationSearchResults: [],
+        showStationDropdown: false,
+
         // 계산 결과
         estimatedDischarge: '--',
         crossSectionChartPC: null,
@@ -791,6 +826,9 @@ function dataInputGrid() {
 
             // 오늘 날짜로 기본값 설정
             this.measurementDate = new Date().toISOString().split('T')[0];
+
+            // 관측소 목록 로드
+            this.loadStationsList();
 
             // URL 파라미터 확인
             const urlParams = new URLSearchParams(window.location.search);
@@ -1221,6 +1259,51 @@ function dataInputGrid() {
             } catch (e) {
                 console.error('설정 로드 오류:', e);
             }
+        },
+
+        // ===== 관측소 자동완성 =====
+        async loadStationsList() {
+            try {
+                const response = await fetch('/static/data/stations.json');
+                if (response.ok) {
+                    this.stationsList = await response.json();
+                    console.log(`관측소 ${this.stationsList.length}개 로드됨`);
+                }
+            } catch (e) {
+                console.warn('관측소 목록 로드 실패:', e);
+            }
+        },
+
+        searchStations() {
+            const query = this.stationName.toLowerCase().trim();
+            if (!query || query.length < 1) {
+                this.stationSearchResults = [];
+                this.showStationDropdown = false;
+                return;
+            }
+
+            this.stationSearchResults = this.stationsList.filter(s =>
+                s.name.toLowerCase().includes(query) ||
+                s.river.toLowerCase().includes(query) ||
+                s.code.includes(query)
+            ).slice(0, 10);
+
+            this.showStationDropdown = this.stationSearchResults.length > 0;
+        },
+
+        selectStation(station) {
+            this.stationName = station.name;
+            this.setupData.river_name = station.river;
+            this.setupData.station_code = station.code;
+            this.showStationDropdown = false;
+            this.scheduleAutoSave();
+        },
+
+        hideStationDropdown() {
+            // 클릭 이벤트가 처리된 후 닫히도록 약간 지연
+            setTimeout(() => {
+                this.showStationDropdown = false;
+            }, 200);
         },
 
         loadTestCSV() {
