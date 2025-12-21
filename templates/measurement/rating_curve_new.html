@@ -450,10 +450,52 @@ function ratingCurveEditor() {
             }
         },
 
-        saveCurve() {
-            // 저장 로직 (추후 구현)
-            alert('저장되었습니다. (샘플)');
-            window.location.href = '{% url "measurement:rating_curve_list" %}';
+        async saveCurve() {
+            if (!this.fitResult) {
+                alert('먼저 곡선 피팅을 실행하세요.');
+                return;
+            }
+
+            if (!this.stationName.trim()) {
+                alert('지점명을 입력하세요.');
+                return;
+            }
+
+            this.isLoading = true;
+            try {
+                const response = await fetch('{% url "measurement:api_rating_curve_save" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        station_name: this.stationName,
+                        year: this.year,
+                        curve_type: this.curveType,
+                        coef_a: this.fitResult.coefficients.a,
+                        coef_b: this.fitResult.coefficients.b,
+                        coef_h0: this.fitResult.coefficients.h0,
+                        h_min: this.fitResult.h_range.min,
+                        h_max: this.fitResult.h_range.max,
+                        r_squared: this.fitResult.statistics.r_squared,
+                        rmse: this.fitResult.statistics.rmse,
+                        data_points: this.dataPoints.filter(p => p.h && p.q),
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('저장되었습니다.');
+                    window.location.href = '{% url "measurement:rating_curve_list" %}';
+                } else {
+                    alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+                }
+            } catch (error) {
+                alert('오류: ' + error.message);
+            } finally {
+                this.isLoading = false;
+            }
         }
     }
 }

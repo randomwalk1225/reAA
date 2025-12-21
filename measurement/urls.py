@@ -30,6 +30,7 @@ urlpatterns = [
     path('rating-curve/new/', views.rating_curve_new, name='rating_curve_new'),
     path('rating-curve/<int:pk>/', views.rating_curve_detail, name='rating_curve_detail'),
     path('rating-curve/fit/', views.fit_rating_curve, name='fit_rating_curve'),
+    path('api/rating-curve/save/', views.api_rating_curve_save, name='api_rating_curve_save'),
 
     # 시계열 데이터
     path('timeseries/', views.timeseries_list, name='timeseries_list'),

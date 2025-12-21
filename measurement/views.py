@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
-from django.views.decorators.http import require_http_methods, require_GET
+from django.views.decorators.http import require_http_methods, require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from io import BytesIO
 from datetime import datetime, timedelta
@@ -570,64 +570,63 @@ def export_pdf(request):
 
 def rating_curve_list(request):
     """수위-유량곡선 목록"""
-    # 샘플 데이터 (추후 DB 연동)
-    sample_curves = [
-        {
-            'id': 1,
-            'station_name': '신태인',
-            'year': 2003,
-            'curve_type': '방류',
-            'h_range': '0.26 ≤ h ≤ 4.45',
-            'equation': 'Q = 24.5898(h - 0.034264)^1.6663',
-            'r_squared': 0.977,
-        },
-        {
-            'id': 2,
-            'station_name': '신태인',
-            'year': 2003,
-            'curve_type': '저류',
-            'h_range': '0.32 ≤ h ≤ 2.03',
-            'equation': 'Q = 2.31208(h + 0.262311)^4.14495',
-            'r_squared': 0.934,
-        },
-        {
-            'id': 3,
-            'station_name': '경주 대종천',
-            'year': 2025,
-            'curve_type': '방류',
-            'h_range': '0.24 < h ≤ 0.5',
-            'equation': 'Q = 3.22(h - 0.001)^1.941',
-            'r_squared': 0.985,
-        },
-    ]
+    from .models import RatingCurve
+
+    curves_qs = RatingCurve.objects.select_related('station').all()
+
+    # 템플릿용 데이터 변환
+    curves = []
+    for curve in curves_qs:
+        curves.append({
+            'id': curve.pk,
+            'station_name': curve.station.name,
+            'year': curve.year,
+            'curve_type': curve.get_curve_type_display(),
+            'h_range': f'{curve.h_min:.2f} ≤ h ≤ {curve.h_max:.2f}',
+            'equation': curve.get_equation_display(),
+            'r_squared': curve.r_squared,
+        })
+
     return render(request, 'measurement/rating_curve_list.html', {
-        'curves': sample_curves,
+        'curves': curves,
     })
 
 
 def rating_curve_detail(request, pk):
     """수위-유량곡선 상세"""
-    # 샘플 데이터
+    from .models import RatingCurve, HQDataPoint
+    from django.shortcuts import get_object_or_404
+
+    curve = get_object_or_404(RatingCurve.objects.select_related('station'), pk=pk)
+
+    # 실측 데이터 조회
+    data_points = HQDataPoint.objects.filter(rating_curve=curve).order_by('measured_date')
+    data_points_list = [
+        {
+            'date': dp.measured_date.strftime('%Y-%m-%d'),
+            'stage': dp.stage,
+            'discharge': dp.discharge,
+        }
+        for dp in data_points
+    ]
+
     curve_data = {
-        'id': pk,
-        'station_name': '경주 대종천',
-        'year': 2025,
-        'curve_type': 'open',
-        'curve_type_display': '방류',
-        'h_min': 0.24,
-        'h_max': 0.5,
-        'coef_a': 3.22,
-        'coef_b': 1.941,
-        'coef_h0': 0.001,
-        'r_squared': 0.985,
-        'equation': 'Q = 3.22×(h - 0.001)^1.941',
-        'data_points': [
-            {'date': '2025-03-15', 'stage': 0.24, 'discharge': 0.12},
-            {'date': '2025-04-20', 'stage': 0.32, 'discharge': 0.28},
-            {'date': '2025-05-10', 'stage': 0.48, 'discharge': 0.95},
-            {'date': '2025-06-05', 'stage': 0.65, 'discharge': 1.65},
-        ],
+        'id': curve.pk,
+        'station_name': curve.station.name,
+        'year': curve.year,
+        'curve_type': curve.curve_type,
+        'curve_type_display': curve.get_curve_type_display(),
+        'h_min': curve.h_min,
+        'h_max': curve.h_max,
+        'coef_a': curve.coef_a,
+        'coef_b': curve.coef_b,
+        'coef_h0': curve.coef_h0,
+        'r_squared': curve.r_squared,
+        'equation': curve.get_equation_display(),
+        'data_points': data_points_list,
+        'note': curve.note,
     }
+
     return render(request, 'measurement/rating_curve_detail.html', {
         'curve': curve_data,
     })
@@ -714,6 +713,74 @@ def fit_rating_curve(request):
                 'q': q_curve.tolist(),
             },
             'fitted_values': q_pred.tolist(),
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_POST
+def api_rating_curve_save(request):
+    """수위-유량곡선 저장 API"""
+    from .models import Station, RatingCurve, HQDataPoint
+
+    try:
+        data = json.loads(request.body)
+
+        station_name = data.get('station_name', '').strip()
+        year = int(data.get('year', datetime.now().year))
+        curve_type = data.get('curve_type', 'open')
+        coef_a = float(data.get('coef_a', 0))
+        coef_b = float(data.get('coef_b', 0))
+        coef_h0 = float(data.get('coef_h0', 0))
+        h_min = float(data.get('h_min', 0))
+        h_max = float(data.get('h_max', 0))
+        r_squared = data.get('r_squared')
+        rmse = data.get('rmse')
+        data_points = data.get('data_points', [])
+
+        if not station_name:
+            return JsonResponse({'error': '지점명을 입력하세요.'}, status=400)
+
+        # 사용자 정보
+        user = request.user if request.user.is_authenticated else None
+
+        # Station 찾거나 생성
+        station, created = Station.objects.get_or_create(
+            name=station_name,
+            defaults={'user': user}
+        )
+
+        # RatingCurve 생성
+        rating_curve = RatingCurve.objects.create(
+            user=user,
+            station=station,
+            year=year,
+            curve_type=curve_type,
+            h_min=h_min,
+            h_max=h_max,
+            coef_a=coef_a,
+            coef_b=coef_b,
+            coef_h0=coef_h0,
+            r_squared=r_squared,
+            rmse=rmse,
+        )
+
+        # 실측 데이터 저장
+        for dp in data_points:
+            if dp.get('h') and dp.get('q'):
+                HQDataPoint.objects.create(
+                    station=station,
+                    rating_curve=rating_curve,
+                    measured_date=dp.get('date') or datetime.now().date(),
+                    stage=float(dp['h']),
+                    discharge=float(dp['q']),
+                )
+
+        return JsonResponse({
+            'success': True,
+            'curve_id': rating_curve.pk,
+            'message': '저장되었습니다.',
         })
 
     except Exception as e:
