@@ -133,6 +133,42 @@ def data_input(request):
 
 def result(request):
     """계산 결과"""
+    from .models import MeasurementSession
+
+    # GET 요청: session_id로 데이터 로드 후 계산 (권장 방식)
+    session_id = request.GET.get('session_id')
+    if session_id:
+        try:
+            session = MeasurementSession.objects.get(pk=session_id)
+            rows = session.rows_data or []
+            calibration = session.calibration_data or {'a': 0.0012, 'b': 0.2534}
+
+            # 계산 수행
+            result_data = calculate_discharge(rows, calibration)
+
+            # 세션 정보 추가
+            result_data['session_id'] = session.pk
+            result_data['station_name'] = session.station_name or ''
+            result_data['measurement_date'] = session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else ''
+            result_data['setup_data'] = session.setup_data or {}
+
+            # 계산 결과를 세션에 저장 (자동 저장)
+            session.estimated_discharge = result_data['discharge']
+            session.total_area = result_data['area']
+            session.total_width = result_data['width']
+            session.max_depth = result_data['avg_depth']
+            if not session.setup_data:
+                session.setup_data = {}
+            session.setup_data['final_discharge'] = result_data['discharge']
+            session.setup_data['final_uncertainty'] = result_data['uncertainty']
+            session.setup_data['final_avg_velocity'] = result_data['avg_velocity']
+            session.save()
+
+            return render(request, 'measurement/result.html', result_data)
+        except MeasurementSession.DoesNotExist:
+            return render(request, 'measurement/result.html', {'error': '세션을 찾을 수 없습니다.'})
+
+    # POST 요청: 레거시 방식 (deprecated - 추후 제거 예정)
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -1377,7 +1413,12 @@ def api_measurement_autosave(request):
 
 @require_POST
 def api_result_save(request):
-    """결과 페이지에서 최종 저장 API"""
+    """결과 페이지에서 최종 저장 API
+
+    중복 저장 방지:
+    - session_id가 있으면 해당 세션만 업데이트
+    - session_id가 없으면 동일 데이터 중복 체크 후 저장
+    """
     from .models import MeasurementSession
 
     try:
@@ -1399,6 +1440,31 @@ def api_result_save(request):
             except:
                 pass
 
+        # session_id가 있으면 해당 세션만 업데이트 (중복 생성 방지)
+        if session_id:
+            try:
+                session = MeasurementSession.objects.get(pk=session_id)
+                # 기존 세션 업데이트 - 결과값 저장
+                session.station_name = station_name or session.station_name
+                if parsed_date:
+                    session.measurement_date = parsed_date
+                session.estimated_discharge = discharge
+                session.total_area = area
+                if not session.setup_data:
+                    session.setup_data = {}
+                session.setup_data['final_discharge'] = discharge
+                session.setup_data['final_uncertainty'] = uncertainty
+                session.setup_data['final_avg_velocity'] = avg_velocity
+                session.save()
+
+                return JsonResponse({
+                    'success': True,
+                    'session_id': session.pk,
+                    'message': '결과가 저장되었습니다.',
+                })
+            except MeasurementSession.DoesNotExist:
+                pass  # session_id가 유효하지 않으면 아래에서 중복 체크 후 처리
+
         # 사용자 또는 세션키로 식별
         user = request.user if request.user.is_authenticated else None
         session_key = request.session.session_key or ''
@@ -1406,43 +1472,36 @@ def api_result_save(request):
             request.session.create()
             session_key = request.session.session_key
 
-        # 기존 세션 업데이트 또는 새로 생성
-        session = None
-        if session_id:
-            try:
-                session = MeasurementSession.objects.get(pk=session_id)
-            except MeasurementSession.DoesNotExist:
-                session = None
-
-        if session:
-            # 기존 세션 업데이트 - 결과값 저장
-            session.station_name = station_name or session.station_name
-            if parsed_date:
-                session.measurement_date = parsed_date
-            session.estimated_discharge = discharge
-            session.total_area = area
-            # 결과 데이터에 불확실도도 저장
-            if not session.setup_data:
-                session.setup_data = {}
-            session.setup_data['final_discharge'] = discharge
-            session.setup_data['final_uncertainty'] = uncertainty
-            session.setup_data['final_avg_velocity'] = avg_velocity
-            session.save()
-        else:
-            # 새 세션 생성 (드문 경우)
-            session = MeasurementSession.objects.create(
-                user=user,
-                session_key=session_key,
+        # 중복 체크: 동일 관측소 + 날짜 + 유량값이 있으면 기존 세션 반환
+        if station_name and parsed_date and discharge:
+            existing = MeasurementSession.objects.filter(
                 station_name=station_name,
                 measurement_date=parsed_date,
-                estimated_discharge=discharge,
-                total_area=area,
-                setup_data={
-                    'final_discharge': discharge,
-                    'final_uncertainty': uncertainty,
-                    'final_avg_velocity': avg_velocity,
-                }
-            )
+                estimated_discharge=discharge
+            ).first()
+
+            if existing:
+                return JsonResponse({
+                    'success': True,
+                    'session_id': existing.pk,
+                    'message': '이미 저장된 데이터입니다.',
+                    'duplicate': True,
+                })
+
+        # 새 세션 생성
+        session = MeasurementSession.objects.create(
+            user=user,
+            session_key=session_key,
+            station_name=station_name,
+            measurement_date=parsed_date,
+            estimated_discharge=discharge,
+            total_area=area,
+            setup_data={
+                'final_discharge': discharge,
+                'final_uncertainty': uncertainty,
+                'final_avg_velocity': avg_velocity,
+            }
+        )
 
         return JsonResponse({
             'success': True,

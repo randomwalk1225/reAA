@@ -1444,40 +1444,43 @@ function dataInputGrid() {
         },
 
         async calculate() {
-            // 데이터를 서버로 전송 (세션 정보 포함)
-            const data = {
-                rows: this.rows,
-                calibration: this.calibration,
-                session_id: this.sessionId,
-                station_name: this.stationName,
-                measurement_date: this.measurementDate,
-                setup_data: this.setupData,
-            };
-
+            // 1. 먼저 데이터 저장 (세션 생성/업데이트)
+            this.isSaving = true;
             try {
-                const response = await fetch('{% url "measurement:result" %}', {
+                const saveResponse = await fetch('{% url "measurement:api_measurement_autosave" %}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({
+                        session_id: this.sessionId,
+                        station_name: this.stationName,
+                        measurement_date: this.measurementDate,
+                        session_number: parseInt(this.currentSession),
+                        rows: this.rows,
+                        calibration: this.calibration,
+                        estimated_discharge: parseFloat(this.estimatedDischarge) || null,
+                        total_width: this.totalWidth,
+                        max_depth: this.maxDepth,
+                        total_area: this.totalArea,
+                        setup_data: this.setupData,
+                    })
                 });
 
-                if (response.ok) {
-                    // 결과 페이지 HTML을 받아서 표시
-                    const html = await response.text();
-                    document.open();
-                    document.write(html);
-                    document.close();
-                    // URL 변경
-                    window.history.pushState({}, '', '{% url "measurement:result" %}');
-                } else {
-                    const error = await response.json();
-                    alert('계산 오류: ' + error.error);
+                if (!saveResponse.ok) {
+                    throw new Error('데이터 저장 실패');
                 }
+
+                const saveResult = await saveResponse.json();
+                this.sessionId = saveResult.session_id;
+
+                // 2. 결과 페이지로 리다이렉트 (document.write 대신 일반 페이지 이동)
+                window.location.href = '{% url "measurement:result" %}?session_id=' + this.sessionId;
+
             } catch (e) {
-                alert('서버 오류: ' + e.message);
+                alert('오류: ' + e.message);
+                this.isSaving = false;
             }
         },
 
