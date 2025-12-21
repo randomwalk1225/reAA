@@ -23,6 +23,7 @@ dependencies = [
     "requests>=2.31",
     "pillow>=10.0",
     "earthengine-api>=0.1.390",
+    "pyarrow>=22.0.0",
 ]
 
 [project.scripts]
