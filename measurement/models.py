@@ -295,14 +295,14 @@ class MeasurementSession(models.Model):
             return
 
         # 유효한 데이터만 필터링
-        valid_rows = [r for r in rows if r.get('depth') and float(r.get('depth', 0)) > 0]
+        valid_rows = [r for r in rows if r.get('depth') and float(r.get('depth') or 0) > 0]
         if not valid_rows:
             return
 
-        # 거리, 수심, 유속 추출
-        distances = [float(r.get('distance', 0)) for r in valid_rows]
-        depths = [float(r.get('depth', 0)) for r in valid_rows]
-        velocities = [float(r.get('velocity', 0)) for r in valid_rows]
+        # 거리, 수심, 유속 추출 (None 값 처리)
+        distances = [float(r.get('distance') or 0) for r in valid_rows]
+        depths = [float(r.get('depth') or 0) for r in valid_rows]
+        velocities = [float(r.get('velocity') or 0) for r in valid_rows]
 
         # 1. 수면폭 (총폭)
         if distances:
@@ -461,6 +461,11 @@ class Meter(models.Model):
 
     def calculate_velocity(self, n, t):
         """회전수와 시간으로 유속 계산: V = a + b * (N/T)"""
-        if t <= 0:
+        try:
+            n = float(n) if n else 0
+            t = float(t) if t else 0
+            if t <= 0:
+                return 0
+            return self.coef_a + self.coef_b * (n / t)
+        except (ValueError, TypeError):
             return 0
-        return self.coef_a + self.coef_b * (n / t)

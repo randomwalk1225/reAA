@@ -197,9 +197,14 @@ def calculate_discharge(rows, calibration):
 
     def calc_velocity(n, t):
         """프로펠러 유속계 유속 계산: V = a + b * (N/T)"""
-        if not n or not t or t == 0:
+        try:
+            n = float(n) if n else 0
+            t = float(t) if t else 0
+            if n == 0 or t == 0:
+                return 0
+            return a + b * (n / t)
+        except (ValueError, TypeError):
             return 0
-        return a + b * (n / t)
 
     # 각 측선별 유속 계산
     verticals = []
@@ -2076,7 +2081,7 @@ def api_analysis_recalculate(request, session_id):
 
 
 def api_analysis_export(request):
-    """분석결과표 Excel 다운로드"""
+    """분석결과표 CSV/Excel 다운로드"""
     import csv
     from django.http import HttpResponse
     from .models import MeasurementSession
@@ -2085,6 +2090,7 @@ def api_analysis_export(request):
     station_name = request.GET.get('station', '')
     start_date = request.GET.get('start_date', '')
     end_date = request.GET.get('end_date', '')
+    export_format = request.GET.get('format', 'csv')
 
     sessions = MeasurementSession.objects.all()
 
@@ -2100,23 +2106,20 @@ def api_analysis_export(request):
 
     sessions = sessions.order_by('measurement_date', 'station_name')
 
-    # CSV 응답 생성
-    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-    response['Content-Disposition'] = 'attachment; filename="analysis_summary.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow([
+    # 데이터 준비
+    headers = [
         '측정일', '지점명', '회차', '위치', '수위(m)',
         '수면폭(m)', '단면적(m²)', '윤변(m)', '동수반경(m)',
         '평균유속(m/s)', '유량(m³/s)', '유속측선수', '불확실도(%)', '등급'
-    ])
+    ]
 
+    rows = []
     for session in sessions:
         if session.wetted_perimeter is None and session.rows_data:
             session.calculate_analysis_results()
             session.save()
 
-        writer.writerow([
+        rows.append([
             session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '',
             session.station_name,
             session.session_number,
@@ -2132,6 +2135,69 @@ def api_analysis_export(request):
             round(session.uncertainty, 2) if session.uncertainty else '',
             session.quality_grade or '',
         ])
+
+    # Excel 형식
+    if export_format == 'excel':
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = '분석결과표'
+
+            # 헤더 스타일
+            header_font = Font(bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='2563EB', end_color='2563EB', fill_type='solid')
+            header_align = Alignment(horizontal='center', vertical='center')
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+
+            # 헤더 추가
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_align
+                cell.border = thin_border
+
+            # 데이터 추가
+            for row_idx, row_data in enumerate(rows, 2):
+                for col_idx, value in enumerate(row_data, 1):
+                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal='center' if col_idx > 4 else 'left')
+
+            # 컬럼 너비 조정
+            column_widths = [12, 15, 6, 15, 10, 10, 12, 10, 10, 12, 12, 8, 10, 6]
+            for i, width in enumerate(column_widths, 1):
+                ws.column_dimensions[get_column_letter(i)].width = width
+
+            # 응답 생성
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = 'attachment; filename="analysis_summary.xlsx"'
+            wb.save(response)
+            return response
+
+        except ImportError:
+            # openpyxl 없으면 CSV로 폴백
+            export_format = 'csv'
+
+    # CSV 형식
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="analysis_summary.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
 
     return response
 
