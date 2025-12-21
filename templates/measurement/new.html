@@ -567,8 +567,8 @@ function measurementWizard() {
         },
 
         submitForm() {
-            // 폼 제출 (추후 구현)
-            console.log('Submitting:', this.formData);
+            // 세션 스토리지에 설정 데이터 저장
+            sessionStorage.setItem('measurementSetup', JSON.stringify(this.formData));
             window.location.href = '{% url "measurement:data_input" %}?new=1';
         }
     }

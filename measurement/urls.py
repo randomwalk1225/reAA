@@ -50,4 +50,8 @@ urlpatterns = [
     path('api/session/history/', views.api_measurement_history, name='api_measurement_history'),
     path('api/session/<int:session_id>/load/', views.api_measurement_load, name='api_measurement_load'),
     path('api/session/<int:session_id>/delete/', views.api_measurement_delete, name='api_measurement_delete'),
+
+    # 관측소 및 H-Q 곡선 API
+    path('api/stations/search/', views.api_stations_search, name='api_stations_search'),
+    path('api/stations/<int:station_id>/rating-curves/', views.api_rating_curves_by_station, name='api_rating_curves_by_station'),
 ]

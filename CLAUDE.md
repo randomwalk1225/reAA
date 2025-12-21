@@ -84,5 +84,21 @@ $json = Get-Content -Raw "resource/googlekey/hydrolink-481811-3c7f2f9745eb.json"
 
 ---
 
+### 5. 기저유출 분석 - 분석 실행 후 차트 미표시 (리사이즈 시에만 표시)
+
+**원인**: `chart.update('none')` 사용 시 렌더링 스킵 문제
+
+**해결**:
+- `update('none')` → `update()` 로 변경 (기본 애니메이션 사용)
+```javascript
+// 잘못된 방식
+this.chart.update('none');  // 애니메이션 비활성화 → 렌더링 문제 발생
+
+// 올바른 방식
+this.chart.update();  // 기본 애니메이션으로 즉시 렌더링
+```
+
+---
+
 ## 디버그 엔드포인트
 - `/hydro/api/debug/env/` - Railway 환경변수 확인용 (프로덕션에서 제거 권장)

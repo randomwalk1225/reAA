@@ -19,27 +19,111 @@
     <!-- Upload Form -->
     <div class="bg-white rounded-xl shadow-sm border p-6">
         <form @submit.prevent="submitUpload">
-            <!-- Station Selection -->
+            <!-- Station Selection with Search -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">관측소 선택</label>
-                <select x-model="stationId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                    <option value="">새 관측소 등록</option>
-                    <option value="1">경주 대종천 하류보</option>
-                    <option value="2">신태인 수위관측소</option>
-                </select>
+                <div class="relative" @click.outside="showStationDropdown = false">
+                    <!-- Search Input -->
+                    <div class="relative">
+                        <input type="text"
+                               x-model="stationSearch"
+                               @focus="showStationDropdown = true; filterStations()"
+                               @input="filterStations()"
+                               @keydown.escape="showStationDropdown = false"
+                               @keydown.arrow-down.prevent="navigateDropdown(1)"
+                               @keydown.arrow-up.prevent="navigateDropdown(-1)"
+                               @keydown.enter.prevent="selectHighlightedStation()"
+                               :placeholder="selectedStation ? selectedStation.name : '관측소 검색 또는 새로 입력...'"
+                               :class="{'text-gray-900': selectedStation, 'text-gray-500': !selectedStation}"
+                               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 pr-20">
+
+                        <!-- Clear button -->
+                        <button type="button"
+                                x-show="selectedStation || stationSearch"
+                                @click="clearStation()"
+                                class="absolute right-10 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+
+                        <!-- Dropdown toggle -->
+                        <button type="button"
+                                @click="showStationDropdown = !showStationDropdown; if(showStationDropdown) filterStations()"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <svg class="w-5 h-5 transition-transform" :class="{'rotate-180': showStationDropdown}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Dropdown -->
+                    <div x-show="showStationDropdown"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+
+                        <!-- New station option -->
+                        <div x-show="stationSearch && !filteredStations.find(s => s.name.toLowerCase() === stationSearch.toLowerCase())"
+                             @click="createNewStation()"
+                             :class="{'bg-primary-50': highlightedIndex === -1}"
+                             class="px-4 py-3 cursor-pointer hover:bg-primary-50 border-b border-gray-100">
+                            <div class="flex items-center text-primary-600">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                <span class="font-medium">"<span x-text="stationSearch"></span>" 새로 추가</span>
+                            </div>
+                        </div>
+
+                        <!-- Existing stations -->
+                        <template x-for="(station, index) in filteredStations" :key="station.id">
+                            <div @click="selectStation(station)"
+                                 :class="{'bg-gray-100': highlightedIndex === index}"
+                                 class="px-4 py-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                                <div class="font-medium text-gray-900" x-text="station.name"></div>
+                                <div x-show="station.river_name" class="text-sm text-gray-500" x-text="station.river_name"></div>
+                            </div>
+                        </template>
+
+                        <!-- Empty state -->
+                        <div x-show="filteredStations.length === 0 && !stationSearch" class="px-4 py-6 text-center text-gray-500">
+                            <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            </svg>
+                            <p>등록된 관측소가 없습니다</p>
+                            <p class="text-sm">관측소명을 입력하여 새로 추가하세요</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected station badge -->
+                <div x-show="selectedStation" x-cloak class="mt-2">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary-100 text-primary-800">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span x-text="selectedStation?.name"></span>
+                        <span x-show="selectedStation?.isNew" class="ml-1 text-xs">(신규)</span>
+                    </span>
+                </div>
             </div>
 
             <!-- New Station Info (conditional) -->
-            <div x-show="!stationId" x-cloak class="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h3 class="text-sm font-medium text-gray-700 mb-3">새 관측소 정보</h3>
+            <div x-show="selectedStation?.isNew" x-cloak x-collapse class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 class="text-sm font-medium text-blue-800 mb-3">새 관측소 정보</h3>
                 <div class="grid gap-4 md:grid-cols-2">
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1">지점명 *</label>
-                        <input type="text" x-model="newStation.name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="예: 경주 대종천">
+                        <label class="block text-xs text-blue-700 mb-1">지점명 *</label>
+                        <input type="text" x-model="newStation.name" readonly class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white" placeholder="예: 경주 대종천">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-500 mb-1">하천명</label>
-                        <input type="text" x-model="newStation.river" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="예: 대종천">
+                        <label class="block text-xs text-blue-700 mb-1">하천명</label>
+                        <input type="text" x-model="newStation.river" class="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400" placeholder="예: 대종천">
                     </div>
                 </div>
             </div>
@@ -47,10 +131,21 @@
             <!-- Rating Curve Selection -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">적용할 H-Q 곡선</label>
-                <select x-model="ratingCurveId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <select x-model="ratingCurveId"
+                        @change="updateRatingCurveInfo()"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                     <option value="">유량 변환 안함 (수위만 저장)</option>
-                    <option value="1">경주 대종천 2025년 방류: Q = 3.22(h - 0.001)^1.941</option>
-                    <option value="2">신태인 2003년 방류: Q = 24.5898(h - 0.034264)^1.6663</option>
+                    {% for curve in rating_curves %}
+                    <option value="{{ curve.id }}"
+                            data-a="{{ curve.coef_a }}"
+                            data-b="{{ curve.coef_b }}"
+                            data-h0="{{ curve.coef_h0 }}"
+                            data-station="{{ curve.station.id }}">
+                        {{ curve.station.name }} {{ curve.year }}년 {{ curve.get_curve_type_display }}: {{ curve.get_equation_display }}
+                    </option>
+                    {% empty %}
+                    <option value="" disabled>등록된 H-Q 곡선이 없습니다</option>
+                    {% endfor %}
                 </select>
                 <p class="mt-1 text-xs text-gray-500">H-Q 곡선을 선택하면 수위 업로드 시 자동으로 유량이 계산됩니다</p>
             </div>
@@ -141,7 +236,7 @@
                     취소
                 </a>
                 <button type="submit"
-                        :disabled="!file || uploading"
+                        :disabled="!file || uploading || (!selectedStation && !stationSearch)"
                         class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
                     <span x-show="!uploading">업로드</span>
                     <span x-show="uploading" class="flex items-center">
@@ -159,15 +254,120 @@
 
 <script>
 function uploadForm() {
+    // 서버에서 전달받은 관측소 목록
+    const initialStations = [
+        {% for station in stations %}
+        { id: {{ station.id }}, name: "{{ station.name|escapejs }}", river_name: "{{ station.river_name|escapejs }}" },
+        {% endfor %}
+    ];
+
+    // Rating curve 정보
+    const ratingCurves = {
+        {% for curve in rating_curves %}
+        '{{ curve.id }}': { a: {{ curve.coef_a }}, b: {{ curve.coef_b }}, h0: {{ curve.coef_h0 }}, stationId: {{ curve.station.id }} },
+        {% endfor %}
+    };
+
     return {
-        stationId: '',
+        // 관측소 관련
+        allStations: initialStations,
+        filteredStations: [],
+        selectedStation: null,
+        stationSearch: '',
+        showStationDropdown: false,
+        highlightedIndex: -1,
         newStation: { name: '', river: '' },
+
+        // Rating Curve
         ratingCurveId: '',
+        ratingCurves: ratingCurves,
+        currentCurve: null,
+
+        // 파일 관련
         file: null,
         fileInfo: '',
         previewData: [],
         isDragging: false,
         uploading: false,
+
+        init() {
+            this.filteredStations = [...this.allStations];
+        },
+
+        filterStations() {
+            const query = this.stationSearch.toLowerCase().trim();
+            if (!query) {
+                this.filteredStations = [...this.allStations];
+            } else {
+                this.filteredStations = this.allStations.filter(s =>
+                    s.name.toLowerCase().includes(query) ||
+                    (s.river_name && s.river_name.toLowerCase().includes(query))
+                );
+            }
+            this.highlightedIndex = -1;
+        },
+
+        navigateDropdown(direction) {
+            if (!this.showStationDropdown) {
+                this.showStationDropdown = true;
+                this.filterStations();
+                return;
+            }
+
+            const maxIndex = this.filteredStations.length - 1;
+            const hasNewOption = this.stationSearch && !this.filteredStations.find(s => s.name.toLowerCase() === this.stationSearch.toLowerCase());
+            const minIndex = hasNewOption ? -1 : 0;
+
+            this.highlightedIndex += direction;
+            if (this.highlightedIndex > maxIndex) this.highlightedIndex = minIndex;
+            if (this.highlightedIndex < minIndex) this.highlightedIndex = maxIndex;
+        },
+
+        selectHighlightedStation() {
+            if (this.highlightedIndex === -1 && this.stationSearch) {
+                this.createNewStation();
+            } else if (this.highlightedIndex >= 0 && this.filteredStations[this.highlightedIndex]) {
+                this.selectStation(this.filteredStations[this.highlightedIndex]);
+            }
+        },
+
+        selectStation(station) {
+            this.selectedStation = station;
+            this.stationSearch = '';
+            this.showStationDropdown = false;
+            this.highlightedIndex = -1;
+        },
+
+        createNewStation() {
+            if (!this.stationSearch.trim()) return;
+
+            this.selectedStation = {
+                id: null,
+                name: this.stationSearch.trim(),
+                river_name: '',
+                isNew: true
+            };
+            this.newStation.name = this.stationSearch.trim();
+            this.newStation.river = '';
+            this.stationSearch = '';
+            this.showStationDropdown = false;
+            this.highlightedIndex = -1;
+        },
+
+        clearStation() {
+            this.selectedStation = null;
+            this.stationSearch = '';
+            this.newStation = { name: '', river: '' };
+            this.showStationDropdown = false;
+        },
+
+        updateRatingCurveInfo() {
+            if (this.ratingCurveId && this.ratingCurves[this.ratingCurveId]) {
+                this.currentCurve = this.ratingCurves[this.ratingCurveId];
+            } else {
+                this.currentCurve = null;
+            }
+        },
 
         handleFileSelect(event) {
             const file = event.target.files[0];
@@ -210,11 +410,15 @@ function uploadForm() {
         },
 
         calculateQ(h) {
-            // 간단한 예시 (실제로는 선택된 곡선에 따라 계산)
-            if (this.ratingCurveId === '1') {
-                return 3.22 * Math.pow(h - 0.001, 1.941);
-            } else if (this.ratingCurveId === '2') {
-                return 24.5898 * Math.pow(h - 0.034264, 1.6663);
+            if (!this.currentCurve) {
+                this.updateRatingCurveInfo();
+            }
+            if (this.currentCurve) {
+                const { a, b, h0 } = this.currentCurve;
+                const adjusted = h - h0;
+                if (adjusted > 0) {
+                    return a * Math.pow(adjusted, b);
+                }
             }
             return 0;
         },
@@ -227,18 +431,21 @@ function uploadForm() {
 
         async submitUpload() {
             if (!this.file) return;
+            if (!this.selectedStation && !this.stationSearch) return;
 
             this.uploading = true;
 
-            // 실제 업로드 로직 (FormData 사용)
             const formData = new FormData();
             formData.append('file', this.file);
-            formData.append('station_id', this.stationId);
             formData.append('rating_curve_id', this.ratingCurveId);
 
-            if (!this.stationId) {
-                formData.append('new_station_name', this.newStation.name);
-                formData.append('new_station_river', this.newStation.river);
+            if (this.selectedStation) {
+                if (this.selectedStation.isNew) {
+                    formData.append('new_station_name', this.selectedStation.name);
+                    formData.append('new_station_river', this.newStation.river);
+                } else {
+                    formData.append('station_id', this.selectedStation.id);
+                }
             }
 
             try {

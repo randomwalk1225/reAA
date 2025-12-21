@@ -252,6 +252,7 @@ class MeasurementSession(models.Model):
     # 데이터 저장 (JSON)
     rows_data = models.JSONField(default=list, verbose_name='측선 데이터')
     calibration_data = models.JSONField(default=dict, verbose_name='검정계수')
+    setup_data = models.JSONField(default=dict, verbose_name='추가 설정')  # 하천명, 기상, 측정자 등
 
     # 계산 결과
     estimated_discharge = models.FloatField(null=True, blank=True, verbose_name='예상유량(m³/s)')

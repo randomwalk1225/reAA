@@ -1143,6 +1143,7 @@ def api_measurement_autosave(request):
         session_number = int(data.get('session_number', 1))
         rows_data = data.get('rows', [])
         calibration_data = data.get('calibration', {})
+        setup_data = data.get('setup_data', {})  # 하천명, 기상, 측정자 등
         estimated_discharge = data.get('estimated_discharge')
         total_width = data.get('total_width')
         max_depth = data.get('max_depth')
@@ -1181,6 +1182,7 @@ def api_measurement_autosave(request):
             session.session_number = session_number
             session.rows_data = rows_data
             session.calibration_data = calibration_data
+            session.setup_data = setup_data
             session.estimated_discharge = estimated_discharge
             session.total_width = total_width
             session.max_depth = max_depth
@@ -1196,6 +1198,7 @@ def api_measurement_autosave(request):
                 session_number=session_number,
                 rows_data=rows_data,
                 calibration_data=calibration_data,
+                setup_data=setup_data,
                 estimated_discharge=estimated_discharge,
                 total_width=total_width,
                 max_depth=max_depth,
@@ -1269,6 +1272,7 @@ def api_measurement_load(request, session_id):
             'session_number': session.session_number,
             'rows': session.rows_data,
             'calibration': session.calibration_data,
+            'setup_data': session.setup_data,
             'estimated_discharge': session.estimated_discharge,
             'total_width': session.total_width,
             'max_depth': session.max_depth,

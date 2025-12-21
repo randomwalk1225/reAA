@@ -754,6 +754,9 @@ function dataInputGrid() {
             b: 0.2534
         },
 
+        // /measurement/new/ 에서 전달된 추가 설정 (하천명, 기상 등)
+        setupData: {},
+
         // 초기 데이터 (빈 폼)
         defaultRows: [
             { id: 1, distance: null, depth: null, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
@@ -788,6 +791,9 @@ function dataInputGrid() {
 
             // 오늘 날짜로 기본값 설정
             this.measurementDate = new Date().toISOString().split('T')[0];
+
+            // /measurement/new/ 에서 전달된 설정 데이터 로드
+            this.loadSetupFromSession();
 
             // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
             this.rows.forEach((row, index) => this.calculateVelocity(index));
@@ -860,6 +866,7 @@ function dataInputGrid() {
                         total_width: this.totalWidth,
                         max_depth: this.maxDepth,
                         total_area: this.totalArea,
+                        setup_data: this.setupData,  // 하천명, 기상, 측정자 등
                     })
                 });
 
@@ -910,6 +917,7 @@ function dataInputGrid() {
                     this.currentSession = String(data.session_number || 1);
                     this.rows = data.rows || JSON.parse(JSON.stringify(this.defaultRows));
                     this.calibration = data.calibration || { a: 0.0012, b: 0.2534 };
+                    this.setupData = data.setup_data || {};
 
                     // 유속 재계산
                     this.rows.forEach((row, index) => this.calculateVelocity(index));
@@ -933,6 +941,7 @@ function dataInputGrid() {
             this.stationName = '';
             this.measurementDate = new Date().toISOString().split('T')[0];
             this.currentSession = '1';
+            this.setupData = {};
             this.rows = JSON.parse(JSON.stringify(this.defaultRows));
             this.rows.forEach((row, index) => this.calculateVelocity(index));
             this.updateEstimatedDischarge();
@@ -1168,6 +1177,43 @@ function dataInputGrid() {
             URL.revokeObjectURL(url);
         },
 
+        loadSetupFromSession() {
+            // /measurement/new/ 에서 저장한 설정 데이터 로드
+            const setupJson = sessionStorage.getItem('measurementSetup');
+            if (!setupJson) return;
+
+            try {
+                const setup = JSON.parse(setupJson);
+
+                // 기본 정보 로드
+                this.stationName = setup.station_name || '';
+                this.measurementDate = setup.measurement_date || new Date().toISOString().split('T')[0];
+                this.currentSession = setup.measurement_count || '1';
+
+                // 추가 정보 저장 (나중에 결과 페이지에서 사용)
+                this.setupData = {
+                    station_code: setup.station_code || '',
+                    river_name: setup.river_name || '',
+                    dm_number: setup.dm_number || '',
+                    location_desc: setup.location_desc || '',
+                    weather: setup.weather || '',
+                    wind: setup.wind || '',
+                    measurer: setup.measurer || '',
+                    note: setup.note || '',
+                    direction: setup.direction || 'LEW_REW',
+                    meter_type: setup.meter_type || 'propeller',
+                    meter_id: setup.meter_id || '',
+                };
+
+                // 세션 스토리지에서 삭제 (일회성)
+                sessionStorage.removeItem('measurementSetup');
+
+                console.log('측정 설정 로드됨:', this.stationName);
+            } catch (e) {
+                console.error('설정 로드 오류:', e);
+            }
+        },
+
         loadTestCSV() {
             // 테스트 CSV 데이터 (경주 대종천 샘플)
             const testData = [
@@ -1190,8 +1236,13 @@ function dataInputGrid() {
                 velocity: 0
             }));
 
-            this.stationName = '경주 대종천 (테스트)';
-            this.measurementDate = new Date().toISOString().split('T')[0];
+            // 기존 관측소명이 없을 때만 테스트용으로 설정
+            if (!this.stationName) {
+                this.stationName = '경주 대종천 (테스트)';
+            }
+            if (!this.measurementDate) {
+                this.measurementDate = new Date().toISOString().split('T')[0];
+            }
 
             // 유속 재계산
             this.rows.forEach((row, index) => this.calculateVelocity(index));
