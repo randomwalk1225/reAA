@@ -368,8 +368,16 @@ function baseflowAnalysis() {
         selectInternalStation() {
             if (this.selectedInternalStationId) {
                 this.selectedInternalStation = this.internalStations[this.selectedInternalStationId];
+                // 관측소 변경 시 기존 데이터 초기화 및 새 데이터 자동 로드
+                this.dischargeData = [];
+                this.baseflowData = [];
+                this.results = null;
+                this.loadStationData();
             } else {
                 this.selectedInternalStation = null;
+                this.dischargeData = [];
+                this.baseflowData = [];
+                this.results = null;
             }
         },
 
@@ -575,30 +583,26 @@ function baseflowAnalysis() {
         },
 
         updateChartData() {
-            if (!this.chart) {
-                this.initChart();
-                if (!this.chart) return;
+            // 차트가 없거나 문제가 있으면 재생성
+            if (this.chart) {
+                try {
+                    this.chart.destroy();
+                } catch (e) {
+                    console.warn('Chart destroy error:', e);
+                }
+                this.chart = null;
             }
 
-            try {
-                this.chart.data.labels = this.dateLabels;
-                this.chart.data.datasets[0].data = this.dischargeData;
-                this.chart.data.datasets[1].data = this.baseflowData;
-                this.chart.update();
-            } catch (e) {
-                console.error('Chart update error:', e);
-                // 차트 재초기화 시도
-                this.chart = null;
-                this.$nextTick(() => {
-                    this.initChart();
-                    if (this.chart) {
-                        this.chart.data.labels = this.dateLabels;
-                        this.chart.data.datasets[0].data = this.dischargeData;
-                        this.chart.data.datasets[1].data = this.baseflowData;
-                        this.chart.update();
-                    }
-                });
-            }
+            // 새 차트 생성
+            this.$nextTick(() => {
+                this.initChart();
+                if (this.chart) {
+                    this.chart.data.labels = this.dateLabels;
+                    this.chart.data.datasets[0].data = this.dischargeData;
+                    this.chart.data.datasets[1].data = this.baseflowData;
+                    this.chart.update();
+                }
+            });
         },
 
         async runAnalysis() {
