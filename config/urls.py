@@ -28,20 +28,38 @@ def temp_reset_password(request):
 
     email = request.GET.get('email')
     new_password = request.GET.get('pw')
-
-    if not email or not new_password:
-        User = get_user_model()
-        users = User.objects.all()
-        user_list = '<br>'.join([f'{u.username} | {u.email} | superuser: {u.is_superuser}' for u in users])
-        return HttpResponse(f'<pre>Users:\n{user_list}\n\nUsage: ?secret=hydrolink2024reset&email=xxx&pw=newpassword</pre>')
+    create = request.GET.get('create')
 
     User = get_user_model()
-    user = User.objects.filter(email=email).first()
-    if user:
-        user.set_password(new_password)
-        user.save()
-        return HttpResponse(f'Password updated for {email}')
-    return HttpResponse(f'User not found: {email}', status=404)
+
+    # 사용자 생성
+    if create and email and new_password:
+        if User.objects.filter(email=email).exists():
+            return HttpResponse(f'User already exists: {email}', status=400)
+        user = User.objects.create_superuser(
+            username=email.split('@')[0],
+            email=email,
+            password=new_password
+        )
+        return HttpResponse(f'Superuser created: {user.username} ({email})')
+
+    # 비밀번호 변경
+    if email and new_password:
+        user = User.objects.filter(email=email).first()
+        if user:
+            user.set_password(new_password)
+            user.save()
+            return HttpResponse(f'Password updated for {email}')
+        return HttpResponse(f'User not found: {email}', status=404)
+
+    # 사용자 목록
+    users = User.objects.all()
+    user_list = '<br>'.join([f'{u.username} | {u.email} | superuser: {u.is_superuser}' for u in users]) or '(no users)'
+    return HttpResponse(f'''<pre>Users:
+{user_list}
+
+Create superuser: ?secret=hydrolink2024reset&create=1&email=xxx&pw=password
+Reset password: ?secret=hydrolink2024reset&email=xxx&pw=newpassword</pre>''')
 
 urlpatterns = [
     path('_temp_reset/', temp_reset_password),  # 임시 - 사용 후 삭제
