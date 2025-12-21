@@ -789,25 +789,34 @@ def api_rating_curve_save(request):
 
 def timeseries_list(request):
     """시계열 데이터 관리"""
-    # 샘플 관측소 목록
-    stations = [
-        {
-            'id': 1,
-            'name': '경주 대종천 하류보',
-            'has_rating_curve': True,
-            'data_count': 8760,  # 1년치 시간 데이터
-            'last_update': '2025-05-01 12:00',
-            'period': '2024-05-01 ~ 2025-05-01',
-        },
-        {
-            'id': 2,
-            'name': '신태인 수위관측소',
-            'has_rating_curve': True,
-            'data_count': 17520,  # 2년치
-            'last_update': '2025-04-30 18:00',
-            'period': '2023-05-01 ~ 2025-04-30',
-        },
-    ]
+    from .models import Station, WaterLevelTimeSeries, RatingCurve
+    from django.db.models import Count, Min, Max
+
+    # DB에서 수위 시계열 데이터가 있는 관측소 조회
+    stations_with_data = WaterLevelTimeSeries.objects.values('station').annotate(
+        data_count=Count('id'),
+        first_time=Min('timestamp'),
+        last_time=Max('timestamp'),
+    )
+
+    stations = []
+    for item in stations_with_data:
+        station = Station.objects.get(pk=item['station'])
+        has_rating = RatingCurve.objects.filter(station=station).exists()
+
+        first_time = item['first_time']
+        last_time = item['last_time']
+        period = f"{first_time.strftime('%Y-%m-%d')} ~ {last_time.strftime('%Y-%m-%d')}" if first_time and last_time else '-'
+
+        stations.append({
+            'id': station.pk,
+            'name': station.name,
+            'has_rating_curve': has_rating,
+            'data_count': item['data_count'],
+            'last_update': last_time.strftime('%Y-%m-%d %H:%M') if last_time else '-',
+            'period': period,
+        })
+
     return render(request, 'measurement/timeseries_list.html', {
         'stations': stations,
     })
