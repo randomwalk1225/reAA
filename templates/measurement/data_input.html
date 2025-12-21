@@ -792,8 +792,17 @@ function dataInputGrid() {
             // 오늘 날짜로 기본값 설정
             this.measurementDate = new Date().toISOString().split('T')[0];
 
-            // /measurement/new/ 에서 전달된 설정 데이터 로드
-            this.loadSetupFromSession();
+            // URL 파라미터 확인
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionIdFromUrl = urlParams.get('session_id');
+
+            if (sessionIdFromUrl) {
+                // 수정 모드: 기존 세션 로드
+                this.loadSession(sessionIdFromUrl);
+            } else {
+                // 새 측정 모드: /measurement/new/ 에서 전달된 설정 데이터 로드
+                this.loadSetupFromSession();
+            }
 
             // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
             this.rows.forEach((row, index) => this.calculateVelocity(index));

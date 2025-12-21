@@ -105,15 +105,21 @@ def measurement_detail(request, pk):
 
 
 def measurement_edit(request, pk):
-    """측정 수정"""
-    return redirect('measurement:data_input')
+    """측정 수정 - 세션 ID를 전달하여 data_input으로 이동"""
+    return redirect(f'/measurement/data-input/?session_id={pk}')
 
 
 def measurement_delete(request, pk):
     """측정 삭제"""
+    from .models import MeasurementSession
+
     if request.method == 'DELETE':
-        # 삭제 처리 (추후 구현)
-        return HttpResponse(status=200)
+        try:
+            session = MeasurementSession.objects.get(pk=pk)
+            session.delete()
+            return HttpResponse(status=200)
+        except MeasurementSession.DoesNotExist:
+            return HttpResponse(status=404)
     return HttpResponse(status=405)
 
 
