@@ -159,5 +159,48 @@ updateChartData() {
 
 ---
 
+### 9. 기저유출 분석 - 관측소 변경 시 차트 미갱신
+
+**원인**:
+1. 관측소 변경 시 새 데이터 자동 로드 미구현
+2. 차트 업데이트 시 기존 차트 인스턴스 재사용으로 인한 렌더링 문제
+
+**해결**:
+1. `selectInternalStation()`에서 관측소 변경 시 자동 데이터 로드
+2. `updateChartData()`에서 기존 차트 파괴 후 재생성
+
+```javascript
+selectInternalStation() {
+    if (this.selectedInternalStationId) {
+        this.selectedInternalStation = this.internalStations[this.selectedInternalStationId];
+        // 관측소 변경 시 기존 데이터 초기화 및 새 데이터 자동 로드
+        this.dischargeData = [];
+        this.baseflowData = [];
+        this.results = null;
+        this.loadStationData();  // 자동 로드
+    }
+},
+
+updateChartData() {
+    // 기존 차트 파괴
+    if (this.chart) {
+        this.chart.destroy();
+        this.chart = null;
+    }
+    // 새 차트 생성
+    this.$nextTick(() => {
+        this.initChart();
+        if (this.chart) {
+            this.chart.data.labels = this.dateLabels;
+            this.chart.data.datasets[0].data = this.dischargeData;
+            this.chart.data.datasets[1].data = this.baseflowData;
+            this.chart.update();
+        }
+    });
+}
+```
+
+---
+
 ## 디버그 엔드포인트
 - `/hydro/api/debug/env/` - Railway 환경변수 확인용 (프로덕션에서 제거 권장)
