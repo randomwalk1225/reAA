@@ -238,9 +238,11 @@ class MeasurementSession(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True, blank=True,
         related_name='measurement_sessions',
         verbose_name='사용자'
     )
+    session_key = models.CharField(max_length=40, blank=True, verbose_name='세션키')  # 비로그인용
 
     # 측정 정보
     station_name = models.CharField(max_length=100, blank=True, verbose_name='관측소명')

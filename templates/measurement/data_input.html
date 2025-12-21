@@ -223,6 +223,16 @@
                 CSV 가져오기
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
             </label>
+            <!-- 테스트 CSV (개발용) -->
+            {% if debug %}
+            <button type="button" @click="loadTestCSV"
+                    class="inline-flex items-center px-3 py-1.5 text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition-colors">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                </svg>
+                테스트 CSV
+            </button>
+            {% endif %}
             <button type="button" @click="exportCSV"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -725,7 +735,7 @@ function dataInputGrid() {
         // 저장 상태
         isSaved: false,
         isSaving: false,
-        isAuthenticated: {{ user.is_authenticated|yesno:"true,false" }},
+        isAuthenticated: true,  // 개발 모드: 항상 자동저장 활성화
         autoSaveTimer: null,
 
         // 히스토리
@@ -1156,6 +1166,38 @@ function dataInputGrid() {
             a.download = `measurement_data_${new Date().toISOString().slice(0,10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
+        },
+
+        loadTestCSV() {
+            // 테스트 CSV 데이터 (경주 대종천 샘플)
+            const testData = [
+                { distance: 0.00, depth: 0.00, method: 'LEW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+                { distance: 1.50, depth: 0.32, method: '1', n_02d: null, t_02d: null, n_06d: 85, t_06d: 60, n_08d: null, t_08d: null },
+                { distance: 3.00, depth: 0.58, method: '1', n_02d: null, t_02d: null, n_06d: 112, t_06d: 60, n_08d: null, t_08d: null },
+                { distance: 4.50, depth: 0.85, method: '2', n_02d: 98, t_02d: 60, n_06d: null, t_06d: null, n_08d: 78, t_08d: 60 },
+                { distance: 6.00, depth: 1.12, method: '3', n_02d: 125, t_02d: 60, n_06d: 108, t_06d: 60, n_08d: 92, t_08d: 60 },
+                { distance: 7.50, depth: 1.35, method: '3', n_02d: 142, t_02d: 60, n_06d: 118, t_06d: 60, n_08d: 98, t_08d: 60 },
+                { distance: 9.00, depth: 1.28, method: '3', n_02d: 138, t_02d: 60, n_06d: 112, t_06d: 60, n_08d: 94, t_08d: 60 },
+                { distance: 10.50, depth: 0.95, method: '2', n_02d: 108, t_02d: 60, n_06d: null, t_06d: null, n_08d: 85, t_08d: 60 },
+                { distance: 12.00, depth: 0.62, method: '1', n_02d: null, t_02d: null, n_06d: 95, t_06d: 60, n_08d: null, t_08d: null },
+                { distance: 13.50, depth: 0.38, method: '1', n_02d: null, t_02d: null, n_06d: 72, t_06d: 60, n_08d: null, t_08d: null },
+                { distance: 15.00, depth: 0.00, method: 'REW', n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null },
+            ];
+
+            this.rows = testData.map((row, index) => ({
+                id: index + 1,
+                ...row,
+                velocity: 0
+            }));
+
+            this.stationName = '경주 대종천 (테스트)';
+            this.measurementDate = new Date().toISOString().split('T')[0];
+
+            // 유속 재계산
+            this.rows.forEach((row, index) => this.calculateVelocity(index));
+            this.updateEstimatedDischarge();
+            this.expandedRow = 0;
+            this.scheduleAutoSave();
         },
 
         switchSession() {

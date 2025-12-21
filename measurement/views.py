@@ -10,36 +10,25 @@ import math
 
 def measurement_list(request):
     """측정 목록"""
-    # 샘플 데이터 (추후 DB 연동)
-    measurements = [
-        {
-            'id': 1,
-            'station_name': '경주 대종천 하류보',
-            'river_name': '대종천',
-            'measurement_date': '2025-05-01',
-            'discharge': 1.234,
-            'uncertainty': 4.2,
-            'status': 'completed',
-        },
-        {
-            'id': 2,
-            'station_name': '신태인 수위관측소',
-            'river_name': '동진강',
-            'measurement_date': '2025-04-28',
-            'discharge': 15.67,
-            'uncertainty': 3.8,
-            'status': 'completed',
-        },
-        {
-            'id': 3,
-            'station_name': '평림천 관측소',
-            'river_name': '평림천',
-            'measurement_date': '2025-04-25',
-            'discharge': 0.856,
-            'uncertainty': 5.1,
-            'status': 'draft',
-        },
-    ]
+    from .models import MeasurementSession
+
+    # DB에서 측정 세션 조회 (모든 사용자)
+    sessions = MeasurementSession.objects.order_by('-updated_at')[:50]
+
+    measurements = []
+    for s in sessions:
+        measurements.append({
+            'id': s.pk,
+            'station_name': s.station_name or '미지정',
+            'river_name': '',
+            'measurement_date': s.measurement_date.strftime('%Y-%m-%d') if s.measurement_date else '-',
+            'discharge': s.estimated_discharge or 0,
+            'uncertainty': '-',
+            'status': 'completed' if s.estimated_discharge else 'draft',
+            'session_number': s.session_number,
+            'updated_at': s.updated_at.strftime('%Y-%m-%d %H:%M') if s.updated_at else '',
+        })
+
     return render(request, 'measurement/list.html', {
         'measurements': measurements,
     })
@@ -130,7 +119,10 @@ def measurement_delete(request, pk):
 
 def data_input(request):
     """데이터 입력 그리드"""
-    return render(request, 'measurement/data_input.html')
+    from django.conf import settings
+    return render(request, 'measurement/data_input.html', {
+        'debug': settings.DEBUG,
+    })
 
 
 def result(request):
@@ -738,10 +730,73 @@ def timeseries_list(request):
 
 def timeseries_upload(request):
     """수위 데이터 업로드"""
+    from .models import Station, RatingCurve
+
     if request.method == 'POST':
         # CSV 파싱 및 저장 로직 (추후 구현)
         return JsonResponse({'success': True, 'message': '업로드 완료'})
-    return render(request, 'measurement/timeseries_upload.html')
+
+    # 관측소 및 H-Q 곡선 목록
+    stations = Station.objects.all().order_by('name')
+    rating_curves = RatingCurve.objects.select_related('station').order_by('station__name', '-year')
+
+    return render(request, 'measurement/timeseries_upload.html', {
+        'stations': stations,
+        'rating_curves': rating_curves,
+    })
+
+
+@require_GET
+def api_stations_search(request):
+    """관측소 검색 API"""
+    from .models import Station
+
+    query = request.GET.get('q', '').strip()
+    limit = int(request.GET.get('limit', 20))
+
+    stations = Station.objects.all()
+
+    if query:
+        stations = stations.filter(name__icontains=query)
+
+    stations = stations.order_by('name')[:limit]
+
+    results = []
+    for s in stations:
+        results.append({
+            'id': s.pk,
+            'name': s.name,
+            'river_name': s.river_name or '',
+        })
+
+    return JsonResponse({
+        'stations': results,
+        'query': query,
+    })
+
+
+@require_GET
+def api_rating_curves_by_station(request, station_id):
+    """관측소별 H-Q 곡선 목록 API"""
+    from .models import RatingCurve
+
+    curves = RatingCurve.objects.filter(station_id=station_id).order_by('-year', 'curve_type')
+
+    results = []
+    for c in curves:
+        results.append({
+            'id': c.pk,
+            'year': c.year,
+            'curve_type': c.curve_type,
+            'curve_type_display': c.get_curve_type_display(),
+            'equation': c.get_equation_display(),
+            'h_range': f'{c.h_min} ≤ h ≤ {c.h_max}',
+        })
+
+    return JsonResponse({
+        'rating_curves': results,
+        'station_id': station_id,
+    })
 
 
 def timeseries_detail(request, station_id):
@@ -1079,9 +1134,6 @@ def api_measurement_autosave(request):
     """측정 데이터 자동저장 API"""
     from .models import MeasurementSession
 
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
-
     try:
         data = json.loads(request.body)
 
@@ -1104,14 +1156,23 @@ def api_measurement_autosave(request):
             except:
                 pass
 
+        # 사용자 또는 세션키로 식별
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key or ''
+        if not session_key and not user:
+            request.session.create()
+            session_key = request.session.session_key
+
         # 기존 세션 업데이트 또는 새로 생성
+        session = None
         if session_id:
             try:
-                session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+                if user:
+                    session = MeasurementSession.objects.get(pk=session_id, user=user)
+                else:
+                    session = MeasurementSession.objects.get(pk=session_id, session_key=session_key)
             except MeasurementSession.DoesNotExist:
                 session = None
-        else:
-            session = None
 
         if session:
             # 기존 세션 업데이트
@@ -1128,7 +1189,8 @@ def api_measurement_autosave(request):
         else:
             # 새 세션 생성
             session = MeasurementSession.objects.create(
-                user=request.user,
+                user=user,
+                session_key=session_key,
                 station_name=station_name,
                 measurement_date=parsed_date,
                 session_number=session_number,
@@ -1155,14 +1217,21 @@ def api_measurement_history(request):
     """측정 데이터 히스토리 목록 API"""
     from .models import MeasurementSession
 
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
-
     limit = int(request.GET.get('limit', 20))
 
-    sessions = MeasurementSession.objects.filter(
-        user=request.user
-    ).order_by('-updated_at')[:limit]
+    # 사용자 또는 세션키로 필터
+    user = request.user if request.user.is_authenticated else None
+    session_key = request.session.session_key or ''
+
+    if user:
+        sessions = MeasurementSession.objects.filter(user=user)
+    elif session_key:
+        sessions = MeasurementSession.objects.filter(session_key=session_key)
+    else:
+        # 비로그인이고 세션도 없으면 전체 최근 데이터 (개발용)
+        sessions = MeasurementSession.objects.all()
+
+    sessions = sessions.order_by('-updated_at')[:limit]
 
     history = []
     for s in sessions:
@@ -1188,11 +1257,9 @@ def api_measurement_load(request, session_id):
     """저장된 측정 데이터 불러오기 API"""
     from .models import MeasurementSession
 
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
-
     try:
-        session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+        # 개발 모드에서는 모든 세션 접근 허용
+        session = MeasurementSession.objects.get(pk=session_id)
 
         return JsonResponse({
             'success': True,
@@ -1218,11 +1285,9 @@ def api_measurement_delete(request, session_id):
     """측정 데이터 세션 삭제 API"""
     from .models import MeasurementSession
 
-    if not request.user.is_authenticated:
-        return JsonResponse({'error': '로그인이 필요합니다.'}, status=401)
-
     try:
-        session = MeasurementSession.objects.get(pk=session_id, user=request.user)
+        # 개발 모드에서는 모든 세션 삭제 허용
+        session = MeasurementSession.objects.get(pk=session_id)
         session.delete()
 
         return JsonResponse({
