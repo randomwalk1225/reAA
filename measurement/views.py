@@ -1847,6 +1847,18 @@ def api_create_mock_data(request):
 # 유속계 관리 API
 # ============================================
 
+def _format_date(date_value):
+    """날짜 값을 문자열로 변환 (이미 문자열이거나 None인 경우 처리)"""
+    if date_value is None:
+        return None
+    if isinstance(date_value, str):
+        return date_value
+    try:
+        return date_value.strftime('%Y-%m-%d')
+    except (AttributeError, TypeError):
+        return str(date_value) if date_value else None
+
+
 def _meter_to_dict_list(meter):
     """Meter 객체를 목록용 딕셔너리로 변환"""
     return {
@@ -1859,8 +1871,8 @@ def _meter_to_dict_list(meter):
         'range_min': meter.range_min,
         'range_max': meter.range_max,
         'uncertainty': meter.uncertainty,
-        'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
-        'calibrationExpiry': meter.calibration_expiry.strftime('%Y-%m-%d') if meter.calibration_expiry else None,
+        'calibrationDate': _format_date(meter.calibration_date),
+        'calibrationExpiry': _format_date(getattr(meter, 'calibration_expiry', None)),
         'calibrationOrg': meter.calibration_org,
         'status': meter.status,
     }
@@ -1919,21 +1931,7 @@ def api_meters_create(request):
         return JsonResponse({
             'success': True,
             'message': '유속계가 등록되었습니다.',
-            'meter': {
-                'id': meter.id,
-                'meter_id': meter.meter_id,
-                'type': meter.meter_type,
-                'a': meter.coef_a,
-                'b': meter.coef_b,
-                'range': meter.range_display,
-                'range_min': meter.range_min,
-                'range_max': meter.range_max,
-                'uncertainty': meter.uncertainty,
-                'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
-                'calibrationExpiry': meter.calibration_expiry.strftime('%Y-%m-%d') if meter.calibration_expiry else None,
-                'calibrationOrg': meter.calibration_org,
-                'status': meter.status,
-            }
+            'meter': _meter_to_dict_list(meter)
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
