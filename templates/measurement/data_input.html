@@ -1237,6 +1237,15 @@ function dataInputGrid() {
                 this.measurementDate = setup.measurement_date || new Date().toISOString().split('T')[0];
                 this.currentSession = setup.measurement_count || '1';
 
+                // 유속계 검정 계수 로드 (V = a + b * N/T)
+                if (setup.calibration) {
+                    this.calibration = {
+                        a: setup.calibration.a ?? 0.0012,
+                        b: setup.calibration.b ?? 0.2534
+                    };
+                    console.log('검정식 적용:', `V = ${this.calibration.a} + ${this.calibration.b} × (N/T)`);
+                }
+
                 // 추가 정보 저장 (나중에 결과 페이지에서 사용)
                 this.setupData = {
                     station_code: setup.station_code || '',
@@ -1250,12 +1259,19 @@ function dataInputGrid() {
                     direction: setup.direction || 'LEW_REW',
                     meter_type: setup.meter_type || 'propeller',
                     meter_id: setup.meter_id || '',
+                    calibration: setup.calibration || null,
                 };
 
                 // 세션 스토리지에서 삭제 (일회성)
                 sessionStorage.removeItem('measurementSetup');
 
                 console.log('측정 설정 로드됨:', this.stationName);
+
+                // 검정식이 적용되면 기존 데이터가 있을 경우 유속 재계산
+                if (setup.calibration && this.rows.length > 0) {
+                    this.rows.forEach((row, index) => this.calculateVelocity(index));
+                    this.updateEstimatedDischarge();
+                }
             } catch (e) {
                 console.error('설정 로드 오류:', e);
             }
