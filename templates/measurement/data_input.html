@@ -250,8 +250,16 @@
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
-                CSV 가져오기
+                CSV
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
+            </label>
+            <!-- Parquet 가져오기 -->
+            <label class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors cursor-pointer">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Parquet
+                <input type="file" accept=".parquet" @change="importParquet($event)" class="hidden">
             </label>
             <!-- 테스트 CSV (개발용) -->
             {% if debug %}
@@ -524,8 +532,15 @@
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
-                CSV 가져오기
+                CSV
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
+            </label>
+            <label class="inline-flex items-center px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg whitespace-nowrap cursor-pointer">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Parquet
+                <input type="file" accept=".parquet" @change="importParquet($event)" class="hidden">
             </label>
             <button @click="exportCSV()"
                     class="inline-flex items-center px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg whitespace-nowrap">
@@ -1194,6 +1209,42 @@ function dataInputGrid() {
                 this.scheduleAutoSave();
             };
             reader.readAsText(file);
+        },
+
+        async importParquet(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('{% url "measurement:api_parquet_import" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    this.rows = result.rows;
+                    this.rows.forEach((row, index) => this.calculateVelocity(index));
+                    this.updateEstimatedDischarge();
+                    this.expandedRow = 0;
+                    this.scheduleAutoSave();
+                    console.log(`Parquet 임포트 완료: ${result.count}행`);
+                } else {
+                    alert('Parquet 임포트 오류: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Parquet import error:', error);
+                alert('Parquet 파일 처리 중 오류가 발생했습니다.');
+            } finally {
+                event.target.value = '';
+            }
         },
 
         exportCSV() {

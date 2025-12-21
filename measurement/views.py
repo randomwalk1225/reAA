@@ -2136,6 +2136,84 @@ def api_analysis_export(request):
     return response
 
 
+@require_POST
+def api_parquet_import(request):
+    """Parquet 파일을 JSON으로 변환하여 반환"""
+    import pandas as pd
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': '파일이 없습니다.'}, status=400)
+
+    uploaded_file = request.FILES['file']
+
+    if not uploaded_file.name.endswith('.parquet'):
+        return JsonResponse({'error': 'Parquet 파일만 지원합니다.'}, status=400)
+
+    try:
+        # Parquet 읽기
+        df = pd.read_parquet(BytesIO(uploaded_file.read()))
+
+        # 컬럼명 정규화 (다양한 형식 지원)
+        column_mapping = {
+            '거리': 'distance', 'distance': 'distance', 'dist': 'distance',
+            '수심': 'depth', 'depth': 'depth',
+            'n_02d': 'n_02d', 'n02d': 'n_02d', 'N_02D': 'n_02d',
+            't_02d': 't_02d', 't02d': 't_02d', 'T_02D': 't_02d',
+            'n_06d': 'n_06d', 'n06d': 'n_06d', 'N_06D': 'n_06d',
+            't_06d': 't_06d', 't06d': 't_06d', 'T_06D': 't_06d',
+            'n_08d': 'n_08d', 'n08d': 'n_08d', 'N_08D': 'n_08d',
+            't_08d': 't_08d', 't08d': 't_08d', 'T_08D': 't_08d',
+        }
+
+        # 컬럼명 변환
+        df.columns = [column_mapping.get(c.lower().strip(), c.lower().strip()) for c in df.columns]
+
+        # 필수 컬럼 확인
+        if 'distance' not in df.columns or 'depth' not in df.columns:
+            return JsonResponse({
+                'error': f'필수 컬럼(distance, depth)이 없습니다. 현재 컬럼: {list(df.columns)}'
+            }, status=400)
+
+        # 데이터를 rows 형식으로 변환
+        rows = []
+        for idx, row in df.iterrows():
+            depth = float(row.get('depth', 0) or 0)
+
+            # 측정법 자동 결정
+            if depth == 0:
+                method = 'LEW' if idx == 0 else 'REW'
+            elif depth < 0.6:
+                method = '1'
+            elif depth < 1.0:
+                method = '2'
+            else:
+                method = '3'
+
+            rows.append({
+                'id': idx + 1,
+                'distance': float(row.get('distance', 0) or 0),
+                'depth': depth,
+                'method': method,
+                'n_02d': float(row['n_02d']) if 'n_02d' in row and pd.notna(row['n_02d']) else None,
+                't_02d': float(row['t_02d']) if 't_02d' in row and pd.notna(row['t_02d']) else None,
+                'n_06d': float(row['n_06d']) if 'n_06d' in row and pd.notna(row['n_06d']) else None,
+                't_06d': float(row['t_06d']) if 't_06d' in row and pd.notna(row['t_06d']) else None,
+                'n_08d': float(row['n_08d']) if 'n_08d' in row and pd.notna(row['n_08d']) else None,
+                't_08d': float(row['t_08d']) if 't_08d' in row and pd.notna(row['t_08d']) else None,
+                'velocity': 0
+            })
+
+        return JsonResponse({
+            'success': True,
+            'rows': rows,
+            'columns': list(df.columns),
+            'count': len(rows)
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': f'파일 처리 오류: {str(e)}'}, status=500)
+
+
 def analysis_summary_view(request):
     """분석결과표 페이지"""
     return render(request, 'measurement/analysis_summary.html')

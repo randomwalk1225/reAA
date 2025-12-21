@@ -77,4 +77,7 @@ urlpatterns = [
     path('api/analysis/summary/', views.api_analysis_summary, name='api_analysis_summary'),
     path('api/analysis/<int:session_id>/recalculate/', views.api_analysis_recalculate, name='api_analysis_recalculate'),
     path('api/analysis/export/', views.api_analysis_export, name='api_analysis_export'),
+
+    # 데이터 임포트
+    path('api/import/parquet/', views.api_parquet_import, name='api_parquet_import'),
 ]
