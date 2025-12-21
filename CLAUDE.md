@@ -100,5 +100,64 @@ this.chart.update();  // 기본 애니메이션으로 즉시 렌더링
 
 ---
 
+### 6. 기저유출 분석 - 자동 데이터 로드 시 차트 에러
+
+**에러 메시지**: `Cannot set properties of undefined (setting 'fullSize')`
+
+**원인**: URL 파라미터로 관측소가 자동 선택되어 데이터 로드가 시작되지만, 차트 초기화(50ms)보다 데이터 로드 완료가 먼저 일어나는 경우
+
+**발생 시나리오**:
+1. `/measurement/baseflow/new/?station=1` 접속
+2. `init()`에서 `initChart()`가 50ms 후 실행 예약
+3. `init()`에서 `loadStationData()`가 100ms 후 실행 예약
+4. 데이터 로드가 빠르게 완료되어 `updateChartData()` 호출
+5. 차트가 아직 초기화되지 않아 에러 발생
+
+**해결**:
+- `updateChartData()`에서 차트 초기화 재시도 시 try-catch 추가
+- 차트 객체 유효성 검사 강화
+```javascript
+updateChartData() {
+    if (!this.chart) {
+        this.initChart();
+        if (!this.chart) return;  // 초기화 실패 시 리턴
+    }
+    try {
+        this.chart.data.labels = this.dateLabels;
+        // ...
+        this.chart.update();
+    } catch (e) {
+        console.error('Chart update error:', e);
+        // 차트 재초기화 시도
+        this.chart = null;
+        this.initChart();
+    }
+}
+```
+
+---
+
+### 7. 데이터 불안정 (저장 후 사라짐)
+
+**원인**: `DATABASE_URL` 환경변수 미설정 → SQLite 폴백 → 컨테이너 재시작 시 데이터 손실
+
+**해결**: Railway에서 PostgreSQL 서비스 추가 후 `DATABASE_URL` 환경변수 연결
+- Railway Dashboard → 앱 서비스 → Variables → `DATABASE_URL` 추가
+- PostgreSQL 서비스와 Reference Variable로 연결
+
+**진단 방법**: `/hydro/api/debug/env/` 엔드포인트에서 `DATABASE_URL` 확인
+
+---
+
+### 8. 저장 버튼 중복 클릭 시 다중 저장
+
+**원인**: 빠른 연속 클릭 시 race condition 발생
+
+**해결**:
+- 프론트엔드: `_saveLock` 동기적 잠금 추가
+- 백엔드: `transaction.atomic()` + `select_for_update()` 적용
+
+---
+
 ## 디버그 엔드포인트
 - `/hydro/api/debug/env/` - Railway 환경변수 확인용 (프로덕션에서 제거 권장)

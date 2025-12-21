@@ -376,15 +376,16 @@ function baseflowAnalysis() {
         init() {
             this.filteredStations = [...this.allStations];
 
-            // 자동 선택된 관측소가 있으면 데이터 자동 로드
-            if (this.selectedInternalStationId && this.selectedInternalStation) {
-                this.$nextTick(() => {
-                    setTimeout(() => this.loadStationData(), 100);
-                });
-            }
-
+            // 차트 초기화를 먼저 수행
             this.$nextTick(() => {
-                setTimeout(() => this.initChart(), 50);
+                setTimeout(() => {
+                    this.initChart();
+
+                    // 차트 초기화 후 자동 선택된 관측소 데이터 로드
+                    if (this.selectedInternalStationId && this.selectedInternalStation) {
+                        setTimeout(() => this.loadStationData(), 100);
+                    }
+                }, 50);
             });
 
             window.addEventListener('resize', () => {
@@ -579,10 +580,25 @@ function baseflowAnalysis() {
                 if (!this.chart) return;
             }
 
-            this.chart.data.labels = this.dateLabels;
-            this.chart.data.datasets[0].data = this.dischargeData;
-            this.chart.data.datasets[1].data = this.baseflowData;
-            this.chart.update();
+            try {
+                this.chart.data.labels = this.dateLabels;
+                this.chart.data.datasets[0].data = this.dischargeData;
+                this.chart.data.datasets[1].data = this.baseflowData;
+                this.chart.update();
+            } catch (e) {
+                console.error('Chart update error:', e);
+                // 차트 재초기화 시도
+                this.chart = null;
+                this.$nextTick(() => {
+                    this.initChart();
+                    if (this.chart) {
+                        this.chart.data.labels = this.dateLabels;
+                        this.chart.data.datasets[0].data = this.dischargeData;
+                        this.chart.data.datasets[1].data = this.baseflowData;
+                        this.chart.update();
+                    }
+                });
+            }
         },
 
         async runAnalysis() {
