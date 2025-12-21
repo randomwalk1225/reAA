@@ -43,7 +43,6 @@ client_secret*.json
 *.json
 !railway.json
 extracted_*/
-docs/
 test_*.py
 analyze_*.py
 extract_*.py
