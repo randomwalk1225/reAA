@@ -313,6 +313,7 @@ class Meter(models.Model):
     # 검정 정보
     uncertainty = models.FloatField(default=1.0, verbose_name='검정 불확실도 (%)')
     calibration_date = models.DateField(null=True, blank=True, verbose_name='검정일')
+    calibration_expiry = models.DateField(null=True, blank=True, verbose_name='검정 유효기간')
     calibration_org = models.CharField(max_length=100, blank=True, verbose_name='검정기관')
 
     # 상태

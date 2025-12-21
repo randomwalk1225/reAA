@@ -1847,28 +1847,32 @@ def api_create_mock_data(request):
 # 유속계 관리 API
 # ============================================
 
+def _meter_to_dict_list(meter):
+    """Meter 객체를 목록용 딕셔너리로 변환"""
+    return {
+        'id': meter.id,
+        'meter_id': meter.meter_id,
+        'type': meter.meter_type,
+        'a': meter.coef_a,
+        'b': meter.coef_b,
+        'range': meter.range_display,
+        'range_min': meter.range_min,
+        'range_max': meter.range_max,
+        'uncertainty': meter.uncertainty,
+        'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
+        'calibrationExpiry': meter.calibration_expiry.strftime('%Y-%m-%d') if meter.calibration_expiry else None,
+        'calibrationOrg': meter.calibration_org,
+        'status': meter.status,
+    }
+
+
 @require_GET
 def api_meters_list(request):
     """유속계 목록 조회 API"""
     from .models import Meter
 
     meters = Meter.objects.all()
-    data = []
-    for m in meters:
-        data.append({
-            'id': m.id,
-            'meter_id': m.meter_id,
-            'type': m.meter_type,
-            'a': m.coef_a,
-            'b': m.coef_b,
-            'range': m.range_display,
-            'range_min': m.range_min,
-            'range_max': m.range_max,
-            'uncertainty': m.uncertainty,
-            'calibrationDate': m.calibration_date.strftime('%Y-%m-%d') if m.calibration_date else None,
-            'calibrationOrg': m.calibration_org,
-            'status': m.status,
-        })
+    data = [_meter_to_dict_list(m) for m in meters]
 
     return JsonResponse({'success': True, 'meters': data})
 
@@ -1878,10 +1882,25 @@ def api_meters_list(request):
 def api_meters_create(request):
     """유속계 생성 API"""
     from .models import Meter
+    from datetime import datetime
     import json
 
     try:
         data = json.loads(request.body)
+
+        # 날짜 파싱
+        calibration_date = None
+        calibration_expiry = None
+        if data.get('calibration_date'):
+            try:
+                calibration_date = datetime.strptime(data['calibration_date'], '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass
+        if data.get('calibration_expiry'):
+            try:
+                calibration_expiry = datetime.strptime(data['calibration_expiry'], '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass
 
         meter = Meter.objects.create(
             meter_id=data.get('meter_id', ''),
@@ -1891,7 +1910,8 @@ def api_meters_create(request):
             range_min=float(data.get('range_min', 0)),
             range_max=float(data.get('range_max', 6.0)),
             uncertainty=float(data.get('uncertainty', 1.0)),
-            calibration_date=data.get('calibration_date') or None,
+            calibration_date=calibration_date,
+            calibration_expiry=calibration_expiry,
             calibration_org=data.get('calibration_org', ''),
             status=data.get('status', 'valid'),
         )
@@ -1910,6 +1930,7 @@ def api_meters_create(request):
                 'range_max': meter.range_max,
                 'uncertainty': meter.uncertainty,
                 'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
+                'calibrationExpiry': meter.calibration_expiry.strftime('%Y-%m-%d') if meter.calibration_expiry else None,
                 'calibrationOrg': meter.calibration_org,
                 'status': meter.status,
             }
@@ -1923,6 +1944,7 @@ def api_meters_create(request):
 def api_meters_update(request, meter_id):
     """유속계 수정 API"""
     from .models import Meter
+    from datetime import datetime
     import json
 
     try:
@@ -1937,7 +1959,21 @@ def api_meters_update(request, meter_id):
         meter.range_max = float(data.get('range_max', meter.range_max))
         meter.uncertainty = float(data.get('uncertainty', meter.uncertainty))
         if 'calibration_date' in data:
-            meter.calibration_date = data['calibration_date'] or None
+            if data['calibration_date']:
+                try:
+                    meter.calibration_date = datetime.strptime(data['calibration_date'], '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    meter.calibration_date = None
+            else:
+                meter.calibration_date = None
+        if 'calibration_expiry' in data:
+            if data['calibration_expiry']:
+                try:
+                    meter.calibration_expiry = datetime.strptime(data['calibration_expiry'], '%Y-%m-%d').date()
+                except (ValueError, TypeError):
+                    meter.calibration_expiry = None
+            else:
+                meter.calibration_expiry = None
         if 'calibration_org' in data:
             meter.calibration_org = data['calibration_org']
         if 'status' in data:
@@ -1948,20 +1984,7 @@ def api_meters_update(request, meter_id):
         return JsonResponse({
             'success': True,
             'message': '유속계가 수정되었습니다.',
-            'meter': {
-                'id': meter.id,
-                'meter_id': meter.meter_id,
-                'type': meter.meter_type,
-                'a': meter.coef_a,
-                'b': meter.coef_b,
-                'range': meter.range_display,
-                'range_min': meter.range_min,
-                'range_max': meter.range_max,
-                'uncertainty': meter.uncertainty,
-                'calibrationDate': meter.calibration_date.strftime('%Y-%m-%d') if meter.calibration_date else None,
-                'calibrationOrg': meter.calibration_org,
-                'status': meter.status,
-            }
+            'meter': _meter_to_dict_list(meter)
         })
     except Meter.DoesNotExist:
         return JsonResponse({'error': '유속계를 찾을 수 없습니다.'}, status=404)
