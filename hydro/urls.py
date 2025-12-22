@@ -33,8 +33,8 @@ urlpatterns = [
     # 관측소 데이터 API (파일 기반)
     path('api/v2/stations/rivers/', views.api_station_rivers, name='api_station_rivers'),
     path('api/v2/stations/search/', views.api_station_search, name='api_station_search'),
-    path('api/v2/stations/<str:code>/', views.api_station_detail, name='api_station_detail'),
     path('api/v2/stations/stats/', views.api_station_stats, name='api_station_stats'),
+    path('api/v2/stations/<str:code>/', views.api_station_detail, name='api_station_detail'),
 
     # 디버그 (임시)
     path('api/debug/env/', views.api_debug_env, name='api_debug_env'),
