@@ -64,9 +64,14 @@ def fetch_kweather_file_list():
         return _file_list_cache['data']
 
     try:
+        # SSL 인증서 검증 비활성화 (kweather 인증서 문제)
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
         response = requests.get(
             KWEATHER_API_URL,
             timeout=10,
+            verify=False,  # SSL 인증서 검증 비활성화
             headers={
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': 'https://weather.kweather.co.kr/weather/satellite',
