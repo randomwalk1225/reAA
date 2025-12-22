@@ -173,14 +173,17 @@
         <div class="bg-white rounded-xl shadow-sm border p-4">
             <h3 class="font-semibold text-gray-900 mb-2">범례</h3>
             <div class="text-sm text-gray-600">
-                <template x-if="imageType.includes('true')">
-                    <p>자연색 영상: 가시광 채널 합성으로 실제 색상에 가깝게 표현</p>
-                </template>
-                <template x-if="imageType.includes('daynight')">
-                    <p>주야간합성 영상: 낮에는 자연색, 밤에는 적외선 기반 합성</p>
-                </template>
-                <template x-if="imageType.includes('ir105')">
+                <template x-if="imageType === 'infrared'">
                     <p>적외선 영상: 밝은 색 = 높은 구름(낮은 온도), 어두운 색 = 지표면</p>
+                </template>
+                <template x-if="imageType === 'composit'">
+                    <p>합성영상: 여러 채널을 합성하여 구름과 지표면 구분 강화</p>
+                </template>
+                <template x-if="imageType === 'visual'">
+                    <p>가시광 영상: 실제 눈으로 보는 것과 유사한 자연색 표현</p>
+                </template>
+                <template x-if="imageType === 'focused'">
+                    <p>확대영상: 한반도 중심 확대 영상</p>
                 </template>
             </div>
         </div>
@@ -189,13 +192,13 @@
         <div class="bg-white rounded-xl shadow-sm border p-4">
             <h3 class="font-semibold text-gray-900 mb-2">데이터 출처</h3>
             <p class="text-sm text-gray-600">
-                <a href="https://nmsc.kma.go.kr/" target="_blank" class="text-primary-600 hover:underline">
-                    국가기상위성센터 (NMSC)
+                <a href="https://weather.kweather.co.kr/weather/satellite" target="_blank" class="text-primary-600 hover:underline">
+                    케이웨더 (K-Weather)
                 </a>
-                - 기상청
+                - GK-2A 위성영상
             </p>
             <p class="text-xs text-gray-400 mt-1">
-                GK-2A 천리안위성 2A호, 정지궤도 (128.2°E), 10분 간격 갱신
+                GK-2A 천리안위성 2A호, 정지궤도 (128.2°E), 2분 간격 갱신
             </p>
         </div>
     </div>
@@ -305,7 +308,7 @@ function satelliteViewer() {
 
         async refreshFrames() {
             try {
-                const response = await fetch('/satellite/api/frames/?count=12&type=' + this.imageType);
+                const response = await fetch('/satellite/api/frames/?count=20&type=' + this.imageType);
                 const data = await response.json();
 
                 if (data.frames && data.frames.length > 0) {

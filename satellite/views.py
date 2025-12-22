@@ -8,8 +8,8 @@ from .services import generate_recent_frames, sync_frames_to_db, IMAGE_TYPES
 
 def satellite_viewer(request):
     """메인 위성영상 뷰어 페이지"""
-    image_type = request.GET.get('type', 'ko_true')
-    frames = generate_recent_frames(count=12, image_type=image_type)
+    image_type = request.GET.get('type', 'infrared')
+    frames = generate_recent_frames(count=20, image_type=image_type)
 
     return render(request, 'satellite/viewer.html', {
         'frames': frames,
@@ -22,8 +22,8 @@ def satellite_viewer(request):
 @require_GET
 def api_frames(request):
     """API: 가용 프레임 목록 반환"""
-    count = int(request.GET.get('count', 12))
-    image_type = request.GET.get('type', 'ko_true')
+    count = int(request.GET.get('count', 20))
+    image_type = request.GET.get('type', 'infrared')
 
     frames = generate_recent_frames(count=count, image_type=image_type)
 
@@ -43,7 +43,7 @@ def api_frames(request):
 @require_GET
 def api_latest_frame(request):
     """API: 최신 프레임 반환"""
-    image_type = request.GET.get('type', 'ko_true')
+    image_type = request.GET.get('type', 'infrared')
     frames = generate_recent_frames(count=1, image_type=image_type)
 
     if frames:
@@ -61,15 +61,15 @@ def api_latest_frame(request):
 @require_POST
 def api_refresh(request):
     """API: 프레임 수동 갱신 (DB 동기화)"""
-    count = sync_frames_to_db(count=12)
+    count = sync_frames_to_db(count=20)
     return JsonResponse({'synced': count})
 
 
 def proxy_image(request):
     """
-    위성 이미지 프록시 (CORS 우회용)
+    위성 이미지 프록시 (CORS/Referer 우회용)
 
-    KMA 서버가 CORS를 허용하지 않는 경우 이 뷰를 통해 이미지를 가져옴
+    kweather 서버는 Referer 체크를 하므로 프록시를 통해 이미지를 가져옴
     URL: /satellite/proxy/?url=<encoded_url>
     """
     image_url = request.GET.get('url', '')
@@ -78,14 +78,27 @@ def proxy_image(request):
         return HttpResponse('Missing url parameter', status=400)
 
     # 허용된 도메인만 프록시
-    allowed_domains = ['weather.go.kr', 'nmsc.kma.go.kr', 'kma.go.kr']
+    allowed_domains = ['kweather.co.kr', 'weather.go.kr', 'nmsc.kma.go.kr', 'kma.go.kr']
     if not any(domain in image_url for domain in allowed_domains):
         return HttpResponse('Domain not allowed', status=403)
 
+    # 도메인별 Referer 설정
+    if 'kweather.co.kr' in image_url:
+        referer = 'https://weather.kweather.co.kr/weather/satellite'
+    else:
+        referer = 'https://www.weather.go.kr/'
+
     try:
-        response = requests.get(image_url, timeout=30, stream=True, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
+        response = requests.get(
+            image_url,
+            timeout=30,
+            stream=True,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': referer,
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            }
+        )
 
         if response.status_code == 200:
             return HttpResponse(
