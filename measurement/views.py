@@ -2491,6 +2491,82 @@ def api_analysis_export(request):
     return response
 
 
+def api_debug_chart_test(request):
+    """차트 생성 디버깅용 API"""
+    import traceback
+    from .models import MeasurementSession
+
+    result = {
+        'matplotlib_version': None,
+        'backend': None,
+        'fonts_available': [],
+        'sessions_count': 0,
+        'chart_tests': []
+    }
+
+    try:
+        import matplotlib
+        result['matplotlib_version'] = matplotlib.__version__
+        result['backend'] = matplotlib.get_backend()
+
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+
+        # 사용 가능한 폰트 (일부만)
+        fonts = [f.name for f in fm.fontManager.ttflist[:20]]
+        result['fonts_available'] = fonts
+
+        # 세션 테스트
+        sessions = MeasurementSession.objects.all()[:3]
+        result['sessions_count'] = MeasurementSession.objects.count()
+
+        for session in sessions:
+            test = {
+                'id': session.id,
+                'name': session.station_name,
+                'rows_count': len(session.rows_data) if session.rows_data else 0,
+                'chart_generated': False,
+                'chart_size': 0,
+                'error': None
+            }
+
+            try:
+                rows = session.rows_data or []
+                if rows and len(rows) >= 2:
+                    from io import BytesIO
+
+                    distances = [float(r.get('distance') or 0) for r in rows]
+                    depths = [-float(r.get('depth') or 0) for r in rows]
+                    velocities = [float(r.get('velocity') or 0) for r in rows]
+
+                    fig, ax = plt.subplots(figsize=(4, 2), dpi=72)
+                    ax.fill_between(distances, depths, 0, alpha=0.3)
+                    ax.plot(distances, depths, linewidth=1)
+                    ax.set_title(f"Test: {session.station_name[:20]}")
+                    plt.tight_layout()
+
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png')
+                    plt.close(fig)
+
+                    test['chart_generated'] = True
+                    test['chart_size'] = buf.tell()
+                else:
+                    test['error'] = f"Insufficient rows: {len(rows)}"
+            except Exception as e:
+                test['error'] = str(e)
+                test['traceback'] = traceback.format_exc()
+
+            result['chart_tests'].append(test)
+
+    except Exception as e:
+        result['error'] = str(e)
+        result['traceback'] = traceback.format_exc()
+
+    return JsonResponse(result)
+
+
 @require_POST
 def api_parquet_import(request):
     """Parquet 파일을 JSON으로 변환하여 반환"""
