@@ -20,6 +20,14 @@ from .gee_service import (
     is_gee_available,
     KOREA_LOCATIONS,
 )
+from .dam_discharge_service import (
+    fetch_dam_discharge_info,
+    check_dam_influence,
+    get_today_discharges,
+    get_active_discharges,
+    DAM_INFO,
+    STATION_UPSTREAM_DAMS,
+)
 
 
 def dashboard(request):
@@ -344,4 +352,126 @@ def api_debug_env(request):
         'gee_variables': gee_vars,
         'all_env_count': len(all_env_keys),
         'all_env_keys': all_env_keys,  # 키만 노출
+    })
+
+
+# ============================================
+# 댐 수문 방류정보 API
+# ============================================
+
+@require_GET
+def api_dam_discharges(request):
+    """
+    API: 댐 수문 방류정보 조회
+
+    Query params:
+        date: 조회일 (YYYYMMDD, 기본 오늘)
+        active_only: 현재 진행 중인 방류만 (true/false)
+    """
+    from datetime import datetime
+
+    date_str = request.GET.get('date')
+    active_only = request.GET.get('active_only', 'false').lower() == 'true'
+
+    if active_only:
+        discharges = get_active_discharges()
+    elif date_str:
+        discharges = fetch_dam_discharge_info(start_date=date_str, end_date=date_str)
+    else:
+        discharges = get_today_discharges()
+
+    return JsonResponse({
+        'discharges': [
+            {
+                'dam_code': d.get('dam_code'),
+                'dam_name': d.get('dam_name'),
+                'start_time': d.get('start_date'),
+                'end_time': d.get('end_date'),
+                'affect_area': d.get('affect_area'),
+                'updated_at': d.get('updated_date'),
+            }
+            for d in discharges
+        ],
+        'count': len(discharges),
+        'active_only': active_only,
+    })
+
+
+@require_GET
+def api_check_dam_influence(request):
+    """
+    API: 관측소에서 특정 시각의 댐 방류 영향 여부 확인
+
+    Query params:
+        station: 관측소 코드 (필수)
+        datetime: 측정 시각 (YYYY-MM-DD HH:MM 또는 YYYYMMDDHHmm, 기본 현재)
+    """
+    from datetime import datetime
+
+    station_code = request.GET.get('station')
+    datetime_str = request.GET.get('datetime')
+
+    if not station_code:
+        return JsonResponse({'error': 'station 파라미터가 필요합니다.'}, status=400)
+
+    # 시간 파싱
+    if datetime_str:
+        measurement_time = None
+        for fmt in ['%Y-%m-%d %H:%M', '%Y%m%d%H%M', '%Y-%m-%dT%H:%M']:
+            try:
+                measurement_time = datetime.strptime(datetime_str, fmt)
+                break
+            except ValueError:
+                continue
+        if not measurement_time:
+            return JsonResponse({'error': '잘못된 datetime 형식입니다.'}, status=400)
+    else:
+        measurement_time = datetime.now()
+
+    # 댐 영향 확인
+    result = check_dam_influence(station_code, measurement_time)
+
+    return JsonResponse({
+        'station_code': station_code,
+        'measurement_time': measurement_time.strftime('%Y-%m-%d %H:%M'),
+        'is_influenced': result['is_influenced'],
+        'influencing_dams': [
+            {
+                'dam_name': d['dam_name'],
+                'river': d['river'],
+                'start_time': d['start_time'].strftime('%Y-%m-%d %H:%M') if d['start_time'] else None,
+                'end_time': d['end_time'].strftime('%Y-%m-%d %H:%M') if d['end_time'] else None,
+                'affect_area': d['affect_area'],
+                'travel_time_hours': d['travel_time_hours'],
+            }
+            for d in result['influencing_dams']
+        ],
+        'message': result['message'],
+    })
+
+
+@require_GET
+def api_dam_list(request):
+    """API: 댐 목록 및 관측소-댐 매핑 정보"""
+    return JsonResponse({
+        'dams': [
+            {
+                'key': key,
+                'code': info['code'],
+                'name': info['name'],
+                'river': info['river'],
+            }
+            for key, info in DAM_INFO.items()
+        ],
+        'station_dam_mapping': {
+            station_code: [
+                {
+                    'dam_key': upstream['dam'],
+                    'dam_name': DAM_INFO.get(upstream['dam'], {}).get('name', upstream['dam']),
+                    'travel_time_hours': upstream['travel_time_hours'],
+                }
+                for upstream in upstreams
+            ]
+            for station_code, upstreams in STATION_UPSTREAM_DAMS.items()
+        },
     })

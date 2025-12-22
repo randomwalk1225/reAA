@@ -25,6 +25,11 @@ urlpatterns = [
     path('my-history/', views.my_history, name='my_history'),
     path('api/my/et-history/', views.api_my_et_history, name='api_my_et_history'),
 
+    # 댐 수문 방류정보 API
+    path('api/dam/discharges/', views.api_dam_discharges, name='api_dam_discharges'),
+    path('api/dam/check-influence/', views.api_check_dam_influence, name='api_check_dam_influence'),
+    path('api/dam/list/', views.api_dam_list, name='api_dam_list'),
+
     # 디버그 (임시)
     path('api/debug/env/', views.api_debug_env, name='api_debug_env'),
 ]

@@ -233,11 +233,28 @@ updateChartData() {
 - 댐 수문이 열고 닫히는 시간을 파악
 - 현재 측정 시각에서 댐 수문 영향 유무를 유량값에 표기
 
-**구현 방향 (검토 필요)**:
-1. 댐 수문 개폐 시간 데이터 소스 확보
-2. 측정 시각 기준 상류 댐까지의 도달시간 고려
-3. 유량 데이터에 `dam_influenced: true/false` 플래그 추가
-4. UI에서 댐 영향 여부 시각적 표시 (아이콘 또는 색상)
+**데이터 소스 확보 완료 (2025-12-22)**:
+- **한국수자원공사_수문 방류정보 조회 서비스** API 발견
+- 엔드포인트: `https://apis.data.go.kr/B500001/DamDisChargeInfo/flugdschginfo`
+- 제공 필드: STARTDATE(방류시작), ENDDATE(방류종료), DAMNM(댐명), AFFECTAREA(영향범위)
+- 갱신주기: 15분
+- 상세 정보: [홍수통제소 정보 제공 현황 > 5. 수문 방류정보 조회 API](#5-수문-방류정보-조회-api-댐-수문-개폐-시간) 참조
+
+**구현 방향**:
+1. **환경변수**: `DAM_DISCHARGE_API_KEY` - 공공데이터포털 인증키
+2. **서비스 레이어**: `hydro/services/dam_discharge.py`
+   - `fetch_dam_discharge_info(date)`: 해당일 방류 정보 조회
+   - `is_dam_discharging(dam_code, datetime)`: 특정 시각 방류 여부 확인
+   - `get_upstream_dams(station_code)`: 관측소 상류 댐 목록 (매핑 테이블 필요)
+3. **도달시간 고려**:
+   - 댐-관측소 간 거리/하천 특성에 따른 도달시간 테이블 구축
+   - `측정시각 - 도달시간` 범위 내 방류 여부 판단
+4. **유량 데이터 연동**:
+   - `dam_influenced: true/false` 플래그 추가
+   - `influencing_dams: ["팔당댐", "충주댐"]` 영향 댐 목록
+5. **UI 표시**:
+   - 유량 측정 화면에 댐 영향 배지/아이콘 표시
+   - 툴팁으로 상세 정보 (어떤 댐, 방류 시작/종료 시간)
 
 ---
 
@@ -362,3 +379,272 @@ updateChartData() {
 3. **시설별 지도 연동**: 선택한 댐/시설의 위치 지도 표시
 4. **날짜 범위 선택**: 유연한 기간 설정 (최대 7일)
 5. **데이터 테이블**: 시계열 데이터 표 형식 제공
+
+---
+
+# 홍수통제소 정보 제공 현황 (2025-12-22)
+
+## 개요
+
+국내 홍수통제소 Open API 현황. **인증키 필수** - URL만으로 바로 데이터 조회 불가.
+
+## 1. 한강홍수통제소 Open API (핵심 - 전국 4대강 통합)
+
+**공식 사이트**: https://www.hrfco.go.kr/web/openapiPage/openApi.do
+**API 레퍼런스**: https://www.hrfco.go.kr/web/openapiPage/reference.do
+**공공데이터포털**: https://www.data.go.kr/data/3040409/openapi.do
+
+### 특징
+- **전국 4대강 데이터 통합 제공** (한강, 낙동강, 금강, 영산강)
+- 금강/낙동강/영산강 홍수통제소는 별도 API 없음 → 이 API 사용
+- JSON, XML 형식 지원
+- 1분당 1,000건 제한
+
+### URL 구조
+```
+https://api.hrfco.go.kr/{ServiceKey}/{HydroType}/{DataType}/{TimeUnit}/{StationCode}/{StartTime}/{EndTime}.{Format}
+```
+
+### 제공 데이터 종류
+
+| HydroType | 설명 | 응답 필드 |
+|-----------|------|----------|
+| waterlevel | 수위 | 현재수위 (El.m), 유량 |
+| rainfall | 강수량 | 시간별 강수량 |
+| dam | 댐 | 현재수위, 총 방류량 (m³/s) |
+| bo | 보 | 수위, 유량 |
+| radar | 강우레이더 | 영상 정보 |
+| fldfct | 홍수예보 | 발표일시, 지점 |
+
+### 시간 단위
+
+| 코드 | 의미 | 최대 조회 기간 |
+|------|------|---------------|
+| 10M | 10분 | 1개월 |
+| 1H | 1시간 | 1년 |
+| 1D | 1일 | 1년 |
+
+### URL 예시
+
+**수위(Waterlevel)**
+```
+# 전체 10분 자료
+https://api.hrfco.go.kr/{ServiceKey}/waterlevel/list/10M.xml
+
+# 한강대교(1018683) 10분 자료
+https://api.hrfco.go.kr/{ServiceKey}/waterlevel/list/10M/1018683.xml
+
+# 기간별 조회 (yyyyMMddHHmm 형식)
+https://api.hrfco.go.kr/{ServiceKey}/waterlevel/list/10M/1018683/202503230710/202503240710.json
+```
+
+**강수량(Rainfall)**
+```
+https://api.hrfco.go.kr/{ServiceKey}/rainfall/list/10M/10184100.xml
+```
+
+**댐(Dam)**
+```
+https://api.hrfco.go.kr/{ServiceKey}/dam/list/10M.xml
+```
+
+**홍수예보(Flood Forecast)**
+```
+https://api.hrfco.go.kr/{ServiceKey}/fldfct/list.xml
+```
+
+### 주의사항
+- 관측소코드 미지정 시 최종 시간 자료만 반환
+- 기간 조회 시 관측소코드 필수
+- 낙동강/금강/영산강 데이터는 한강보다 수집 지연 (11분 이상)
+
+---
+
+## 2. WAMIS 국가수자원관리종합정보시스템
+
+**공식 사이트**: https://www.wamis.go.kr/
+**인증키 신청**: http://www.wamis.go.kr:8080/wamisweb/mn/w54.do
+**GitHub 튜토리얼**: https://github.com/hyunholee26/Tutorial-Hydrology-data-collection-using-WAMIS-OpenAPI
+
+### 특징
+- 환경부 한강홍수통제소 관리
+- 강수량, 수위, 기상 등 다양한 수문 데이터
+- Python 연동 용이
+
+### 주요 API 엔드포인트
+
+| 데이터 | 엔드포인트 |
+|--------|-----------|
+| 수위 시간자료 | `http://www.wamis.go.kr:8080/wamis/openapi/wkw/wl_hrdata` |
+| 기상 시간자료 | `http://www.wamis.go.kr:8080/wamis/openapi/wkw/we_hrdata` |
+| 관측소 정보 | `http://www.wamis.go.kr:8080/wamis/openapi/wkd/mn_obsinfo` |
+
+### 파라미터
+
+| 파라미터 | 설명 | 예시 |
+|---------|------|------|
+| ServiceKey | 인증키 | (발급받은 키) |
+| ResultType | 응답 형식 | json |
+| obscd | 관측소 코드 | 1012650 |
+| startdt | 시작일 (YYYYMMDD) | 20241201 |
+| enddt | 종료일 (YYYYMMDD) | 20241222 |
+
+### Python 코드 예시
+
+```python
+import requests
+
+url = "http://www.wamis.go.kr:8080/wamis/openapi/wkw/wl_hrdata"
+params = {
+    "ServiceKey": "YOUR_API_KEY",
+    "ResultType": "json",
+    "obscd": "1012650",
+    "startdt": "20241201",
+    "enddt": "20241222"
+}
+response = requests.get(url, params=params)
+data = response.json()["result"]["data"]
+```
+
+### 기상 데이터 응답 필드
+- ymdh: 시간
+- ta: 기온
+- hm: 습도
+- ws: 풍속
+- wd: 풍향
+- sihr1, catot, sdtot: 기타 기상 요소
+
+---
+
+## 3. 개별 홍수통제소 (별도 API 없음)
+
+| 홍수통제소 | 공식 사이트 | API 상태 |
+|-----------|-----------|---------|
+| 금강 | https://www.geumriver.go.kr/ | 별도 API 없음 → HRFCO API 사용 |
+| 낙동강 | https://www.nakdongriver.go.kr/ | 별도 API 없음 → HRFCO API 사용 |
+| 영산강 | https://www.yeongsanriver.go.kr/ | 별도 API 없음 → HRFCO API 사용 |
+
+---
+
+## 4. 공공데이터포털 관련 API
+
+**공식 사이트**: https://www.data.go.kr/
+
+| API명 | 링크 | 활용신청 |
+|-------|------|---------|
+| 한강홍수통제소_표준수문DB | https://www.data.go.kr/data/3040409/openapi.do | 1,825건 |
+| 낙동강홍수통제소_홍수예보정보 | https://www.data.go.kr/data/3039647/fileData.do | - |
+| 한강홍수통제소_강우레이더영상 | https://www.data.go.kr/data/15021451/openapi.do | - |
+| **한국수자원공사_수문 방류정보 조회** | https://www.data.go.kr/data/15140222/openapi.do | - |
+
+---
+
+## 5. 수문 방류정보 조회 API (댐 수문 개폐 시간)
+
+**공공데이터포털**: https://www.data.go.kr/data/15140222/openapi.do
+
+### API 정보
+
+| 항목 | 내용 |
+|------|------|
+| 엔드포인트 | `https://apis.data.go.kr/B500001/DamDisChargeInfo/flugdschginfo` |
+| 갱신주기 | 15분 |
+| 형식 | XML |
+| 비용 | 무료 |
+| 제공기관 | 한국수자원공사 (K-water) |
+
+### 요청 파라미터
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| serviceKey | string | O | 공공데이터포털 인증키 |
+| pageNo | string | O | 페이지 번호 |
+| numOfRows | string | O | 페이지당 결과 수 |
+| stDt | string | X | 시작일 (YYYYMMDD) |
+| edDt | string | X | 종료일 (YYYYMMDD) |
+| damCd | string | X | 댐 코드 |
+
+### 응답 필드 (핵심)
+
+| 필드 | 설명 | 용도 |
+|------|------|------|
+| **STARTDATE** | 방류 시작 시간 | 수문 개방 시간 |
+| **ENDDATE** | 방류 종료 시간 | 수문 폐쇄 시간 |
+| DAMCD | 댐 코드 | 댐 식별 |
+| DAMNM | 댐 이름 | 표시용 |
+| DAMCOORD | 댐 좌표 | 지도 표시 |
+| AFFECTAREA | 영향 범위 | 하류 영향 지역 |
+| UPDATEDDATE | 업데이트 시간 | 데이터 최신성 확인 |
+
+### 요청 예시
+```
+GET https://apis.data.go.kr/B500001/DamDisChargeInfo/flugdschginfo
+?serviceKey={인증키}
+&pageNo=1
+&numOfRows=100
+&stDt=20241222
+&edDt=20241222
+```
+
+### Python 코드 예시
+```python
+import requests
+import xml.etree.ElementTree as ET
+
+url = "https://apis.data.go.kr/B500001/DamDisChargeInfo/flugdschginfo"
+params = {
+    "serviceKey": "YOUR_API_KEY",
+    "pageNo": "1",
+    "numOfRows": "100",
+    "stDt": "20241222",
+    "edDt": "20241222"
+}
+response = requests.get(url, params=params)
+root = ET.fromstring(response.content)
+
+for item in root.findall('.//item'):
+    dam_name = item.find('DAMNM').text
+    start_time = item.find('STARTDATE').text
+    end_time = item.find('ENDDATE').text
+    affect_area = item.find('AFFECTAREA').text
+    print(f"{dam_name}: {start_time} ~ {end_time}, 영향범위: {affect_area}")
+```
+
+---
+
+## 인증키 발급 절차
+
+### 한강홍수통제소 API
+1. https://www.hrfco.go.kr/web/openapiPage/openApi.do 접속
+2. "오픈API 사용 신청" 메뉴 클릭
+3. 회원가입/로그인
+4. 인증키 발급 신청
+5. 발급된 ServiceKey로 API 호출
+
+### WAMIS API
+1. http://www.wamis.go.kr/ 접속
+2. OpenAPI 메뉴 클릭
+3. 로그인
+4. OpenAPI 활용 신청 및 키 확인
+
+### 공공데이터포털 API
+1. https://www.data.go.kr/ 접속
+2. 회원가입/로그인
+3. 원하는 API 검색 후 "활용신청"
+4. 개발계정: 1일 1,000건 / 운영계정: 1일 10만건
+
+---
+
+## 교육용 요약
+
+**Q: 금강/낙동강 데이터는 어디서 가져오나요?**
+A: 한강홍수통제소 Open API가 **전국 4대강을 통합 제공**합니다. 별도 금강/낙동강 API는 없습니다.
+
+**Q: URL만 입력하면 바로 데이터 받을 수 있나요?**
+A: 아니요. 모든 API는 **인증키(ServiceKey) 필수**입니다. 사전에 발급받아야 합니다.
+
+**Q: 가장 쉬운 방법은?**
+A: 한강홍수통제소 API 인증키 발급 → REST API로 JSON 데이터 조회
+
+**Q: Python으로 연동하려면?**
+A: `requests` 라이브러리로 GET 요청. WAMIS GitHub 튜토리얼 참고.
