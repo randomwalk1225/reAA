@@ -538,7 +538,11 @@ function hydroDashboard() {
         },
 
         getStationName(type, code) {
-            return this.stationNameCache[type][code] || code;
+            const name = this.stationNameCache[type][code];
+            if (name && name !== code) {
+                return `${name} (${code})`;
+            }
+            return code;
         },
 
         resetStations() {
