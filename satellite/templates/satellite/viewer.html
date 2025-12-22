@@ -5,197 +5,73 @@
 {% block extra_head %}
 <style>
     .satellite-container {
-        height: 70vh;
-        min-height: 400px;
         width: 100%;
-        background: #1a1a2e;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        height: 80vh;
+        min-height: 500px;
+        border: none;
+        border-radius: 12px;
         overflow: hidden;
+        background: #1a1a2e;
     }
-    .satellite-image {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-    }
-    .time-display {
-        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
-    }
-
-    /* Loading overlay */
-    .loading-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(26, 26, 46, 0.8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    }
-    .loading-spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid rgba(255,255,255,0.3);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-        to { transform: rotate(360deg); }
+    .satellite-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" x-data="satelliteViewer()">
+<div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">실시간 위성영상</h1>
-            <p class="mt-1 text-gray-600">GK-2A 천리안위성 2A호 (한반도 2분, 동아시아 10분 간격)</p>
+            <p class="mt-1 text-gray-600">GK-2A 천리안위성 2A호 - 케이웨더 제공</p>
         </div>
-        <div class="mt-4 sm:mt-0 flex items-center gap-4">
-            <!-- Image Type Selector -->
-            <select x-model="imageType" @change="changeImageType()"
-                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500">
-                {% for key, info in image_types.items %}
-                <option value="{{ key }}" {% if key == current_type %}selected{% endif %}>{{ info.name }}</option>
-                {% endfor %}
-            </select>
-
-            <!-- Auto Refresh Toggle -->
-            <div class="flex items-center gap-2">
-                <span class="text-sm text-gray-500">자동 갱신</span>
-                <button type="button"
-                        @click="autoRefresh = !autoRefresh"
-                        :class="autoRefresh ? 'bg-green-500' : 'bg-gray-300'"
-                        class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none">
-                    <span :class="autoRefresh ? 'translate-x-5' : 'translate-x-0'"
-                          class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
-                </button>
-            </div>
+        <div class="mt-4 sm:mt-0">
+            <a href="https://weather.kweather.co.kr/weather/satellite" target="_blank"
+               class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+                새 창에서 열기
+            </a>
         </div>
     </div>
 
-    <!-- Controls -->
-    <div class="bg-white rounded-xl shadow-sm border p-4 mb-4">
-        <div class="flex flex-wrap items-center gap-4">
-            <!-- Time Display -->
-            <div class="flex-shrink-0">
-                <span class="text-sm text-gray-500">영상 시각:</span>
-                <span x-text="currentTime" class="time-display font-semibold text-gray-900 ml-2">--</span>
-            </div>
-
-            <!-- Playback Controls -->
-            <div class="flex items-center space-x-1">
-                <button @click="goToFirst()" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200" title="처음으로">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
-                    </svg>
-                </button>
-                <button @click="prevFrame()" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200" title="이전">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                </button>
-                <button @click="togglePlay()" class="p-2 rounded-lg" :class="isPlaying ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'" title="재생/일시정지">
-                    <svg x-show="!isPlaying" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                    </svg>
-                    <svg x-show="isPlaying" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-                    </svg>
-                </button>
-                <button @click="nextFrame()" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200" title="다음">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                </button>
-                <button @click="goToLast()" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200" title="최신으로">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Time Slider -->
-            <div class="flex-1 min-w-[150px] max-w-md">
-                <input type="range"
-                       x-model="frameIndex"
-                       :max="frames.length - 1"
-                       min="0"
-                       @input="showFrame(parseInt(frameIndex))"
-                       class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-            </div>
-
-            <!-- Opacity Control -->
-            <div class="flex items-center space-x-2">
-                <span class="text-sm text-gray-500">투명도:</span>
-                <input type="range" x-model="opacity" min="0" max="100"
-                       @input="updateOpacity()"
-                       class="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                <span x-text="opacity + '%'" class="text-sm w-10 text-gray-600"></span>
-            </div>
-
-            <!-- Frame Info -->
-            <div class="text-sm text-gray-500">
-                <span x-text="(parseInt(frameIndex) + 1) + ' / ' + frames.length"></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Image Container -->
-    <div class="bg-white rounded-xl shadow-sm border overflow-hidden relative">
+    <!-- Embedded Satellite Viewer -->
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div class="satellite-container">
-            <img :src="currentImageUrl"
-                 class="satellite-image"
-                 @load="isLoading = false"
-                 @error="isLoading = false"
-                 alt="위성영상">
-        </div>
-
-        <!-- Loading Overlay -->
-        <div x-show="isLoading" class="loading-overlay" x-transition>
-            <div class="text-center text-white">
-                <div class="loading-spinner mx-auto mb-2"></div>
-                <p class="text-sm">영상 로딩 중...</p>
-            </div>
+            <iframe
+                src="https://weather.kweather.co.kr/weather/satellite"
+                class="satellite-iframe"
+                title="케이웨더 위성영상"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                allow="fullscreen">
+            </iframe>
         </div>
     </div>
 
-    <!-- Info & Legend -->
+    <!-- Info -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-        <!-- Legend -->
         <div class="bg-white rounded-xl shadow-sm border p-4">
-            <h3 class="font-semibold text-gray-900 mb-2">범례</h3>
-            <div class="text-sm text-gray-600">
-                <template x-if="imageType === 'infrared'">
-                    <p>적외선 영상: 밝은 색 = 높은 구름(낮은 온도), 어두운 색 = 지표면</p>
-                </template>
-                <template x-if="imageType === 'composit'">
-                    <p>합성영상: 여러 채널을 합성하여 구름과 지표면 구분 강화</p>
-                </template>
-                <template x-if="imageType === 'visual'">
-                    <p>가시광 영상: 실제 눈으로 보는 것과 유사한 자연색 표현</p>
-                </template>
-                <template x-if="imageType === 'focused'">
-                    <p>확대영상: 한반도 중심 확대 영상</p>
-                </template>
-            </div>
+            <h3 class="font-semibold text-gray-900 mb-2">영상 종류</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                <li>• 적외선 영상: 구름 온도 분포</li>
+                <li>• 합성영상: 다중 채널 합성</li>
+                <li>• 가시광 영상: 자연색 표현</li>
+                <li>• 확대영상: 한반도 중심</li>
+            </ul>
         </div>
 
-        <!-- Data Source -->
         <div class="bg-white rounded-xl shadow-sm border p-4">
             <h3 class="font-semibold text-gray-900 mb-2">데이터 출처</h3>
             <p class="text-sm text-gray-600">
-                <a href="https://weather.kweather.co.kr/weather/satellite" target="_blank" class="text-primary-600 hover:underline">
+                <a href="https://weather.kweather.co.kr" target="_blank" class="text-primary-600 hover:underline">
                     케이웨더 (K-Weather)
                 </a>
-                - GK-2A 위성영상
             </p>
             <p class="text-xs text-gray-400 mt-1">
                 GK-2A 천리안위성 2A호, 정지궤도 (128.2°E), 2분 간격 갱신
@@ -203,138 +79,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-// 프레임 데이터 (서버에서 전달)
-const INITIAL_FRAMES = [
-    {% for frame in frames %}
-    {
-        timestamp: "{{ frame.timestamp|date:'c' }}",
-        timestampStr: "{{ frame.timestamp_str }}",
-        imageUrl: "{{ frame.image_url }}"
-    }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-];
-
-function satelliteViewer() {
-    return {
-        frames: INITIAL_FRAMES,
-        frameIndex: 0,
-        isPlaying: false,
-        playInterval: null,
-        playSpeed: 500,
-        opacity: 100,
-        autoRefresh: true,
-        refreshInterval: null,
-        currentTime: '--',
-        isLoading: true,
-        imageType: '{{ current_type }}',
-        currentImageUrl: '',
-
-        init() {
-            if (this.frames.length > 0) {
-                this.showFrame(0);
-            }
-
-            // 2분마다 자동 갱신 (한반도 영상 기준)
-            this.refreshInterval = setInterval(() => {
-                if (this.autoRefresh && !this.isPlaying) {
-                    this.refreshFrames();
-                }
-            }, 2 * 60 * 1000);
-        },
-
-        showFrame(index) {
-            if (index < 0 || index >= this.frames.length) return;
-
-            this.frameIndex = index;
-            const frame = this.frames[index];
-            this.currentTime = frame.timestampStr;
-            this.isLoading = true;
-
-            // 프록시를 통해 이미지 로드
-            this.currentImageUrl = '/satellite/proxy/?url=' + encodeURIComponent(frame.imageUrl);
-        },
-
-        updateOpacity() {
-            // CSS opacity로 적용
-            const img = document.querySelector('.satellite-image');
-            if (img) {
-                img.style.opacity = this.opacity / 100;
-            }
-        },
-
-        togglePlay() {
-            this.isPlaying = !this.isPlaying;
-
-            if (this.isPlaying) {
-                this.playInterval = setInterval(() => {
-                    let nextIndex = parseInt(this.frameIndex) + 1;
-                    if (nextIndex >= this.frames.length) {
-                        nextIndex = 0;
-                    }
-                    this.showFrame(nextIndex);
-                }, this.playSpeed);
-            } else {
-                clearInterval(this.playInterval);
-            }
-        },
-
-        prevFrame() {
-            if (this.frameIndex > 0) {
-                this.showFrame(parseInt(this.frameIndex) - 1);
-            }
-        },
-
-        nextFrame() {
-            if (this.frameIndex < this.frames.length - 1) {
-                this.showFrame(parseInt(this.frameIndex) + 1);
-            }
-        },
-
-        goToFirst() {
-            this.showFrame(this.frames.length - 1);
-        },
-
-        goToLast() {
-            this.showFrame(0);
-        },
-
-        changeImageType() {
-            window.location.href = '/satellite/?type=' + this.imageType;
-        },
-
-        async refreshFrames() {
-            try {
-                const response = await fetch('/satellite/api/frames/?count=20&type=' + this.imageType);
-                const data = await response.json();
-
-                if (data.frames && data.frames.length > 0) {
-                    this.frames = data.frames.map(f => ({
-                        timestamp: f.timestamp,
-                        timestampStr: f.timestamp_str,
-                        imageUrl: f.image_url
-                    }));
-
-                    // 최신 프레임으로 이동
-                    this.showFrame(0);
-                }
-            } catch (error) {
-                console.error('Failed to refresh frames:', error);
-            }
-        },
-
-        destroy() {
-            if (this.playInterval) {
-                clearInterval(this.playInterval);
-            }
-            if (this.refreshInterval) {
-                clearInterval(this.refreshInterval);
-            }
-        }
-    };
-}
-</script>
 {% endblock %}
