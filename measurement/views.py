@@ -2168,12 +2168,82 @@ def api_analysis_recalculate(request, session_id):
 
 
 def api_analysis_export(request):
-    """분석결과표 CSV/Excel 다운로드"""
+    """분석결과표 Excel 다운로드 - 피벗 형식 (지역별 시트, 날짜별 열) + 차트"""
     import csv
+    from collections import defaultdict
     from django.http import HttpResponse
     from .models import MeasurementSession
 
-    # 필터 (api_analysis_summary와 동일)
+    # 차트 생성 함수
+    def generate_chart_image(session):
+        """세션 데이터로 단면/유속 차트 이미지 생성"""
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            from matplotlib import font_manager, rc
+            from io import BytesIO
+
+            # 한글 폰트 설정
+            try:
+                rc('font', family='Malgun Gothic')
+            except:
+                pass
+            plt.rcParams['axes.unicode_minus'] = False
+
+            rows = session.rows_data or []
+            if not rows or len(rows) < 2:
+                return None
+
+            distances = [float(r.get('distance') or 0) for r in rows]
+            depths = [-float(r.get('depth') or 0) for r in rows]
+            velocities = [float(r.get('velocity') or 0) for r in rows]
+
+            fig, ax1 = plt.subplots(figsize=(5, 3), dpi=100)
+
+            # 수심 (단면)
+            ax1.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='수심')
+            ax1.plot(distances, depths, color='#1e3a5f', linewidth=2)
+            ax1.set_xlabel('거리 (m)', fontsize=9)
+            ax1.set_ylabel('수심 (m)', color='#1e3a5f', fontsize=9)
+            ax1.tick_params(axis='y', labelcolor='#1e3a5f')
+            ax1.set_ylim(min(depths) * 1.2 if depths else -1, 0.1)
+            ax1.axhline(y=0, color='#3b82f6', linewidth=1.5)
+            ax1.grid(True, linestyle='--', alpha=0.5, color='gray')
+            ax1.set_axisbelow(True)
+
+            # 유속
+            ax2 = ax1.twinx()
+            ax2.plot(distances, velocities, color='#ef4444', linewidth=2, marker='o', markersize=4, label='유속')
+            ax2.set_ylabel('유속 (m/s)', color='#ef4444', fontsize=9)
+            ax2.tick_params(axis='y', labelcolor='#ef4444')
+            ax2.set_ylim(0, max(velocities) * 1.3 if max(velocities) > 0 else 1)
+            ax2.grid(True, linestyle=':', alpha=0.3, color='#ef4444', axis='y')
+
+            # 제목
+            loc_desc = session.setup_data.get('location_desc', '') if session.setup_data else ''
+            title = f"{session.station_name or ''}"
+            if loc_desc:
+                title += f" ({loc_desc})"
+            plt.title(title, fontsize=10, fontweight='bold')
+
+            # 범례
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
+
+            plt.tight_layout()
+
+            img_buffer = BytesIO()
+            plt.savefig(img_buffer, format='png', bbox_inches='tight', facecolor='white')
+            plt.close(fig)
+            img_buffer.seek(0)
+            return img_buffer
+        except Exception as e:
+            print(f"Chart generation error: {e}")
+            return None
+
+    # 필터
     station_name = request.GET.get('station', '')
     start_date = request.GET.get('start_date', '')
     end_date = request.GET.get('end_date', '')
@@ -2191,26 +2261,180 @@ def api_analysis_export(request):
     if end_date:
         sessions = sessions.filter(measurement_date__lte=end_date)
 
-    sessions = sessions.order_by('measurement_date', 'station_name')
+    sessions = sessions.order_by('station_name', 'measurement_date')
 
-    # 데이터 준비
-    headers = [
-        '측정일', '지점명', '회차', '위치', '수위(m)',
-        '수면폭(m)', '단면적(m²)', '윤변(m)', '동수반경(m)',
-        '평균유속(m/s)', '유량(m³/s)', '유속측선수', '불확실도(%)', '등급'
-    ]
+    # Excel 피벗 형식
+    if export_format == 'excel':
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            from openpyxl.drawing.image import Image as XLImage
 
+            wb = Workbook()
+            wb.remove(wb.active)
+
+            # 지역별 그룹화
+            stations_data = defaultdict(list)
+            for session in sessions:
+                if session.wetted_perimeter is None and session.rows_data:
+                    session.calculate_analysis_results()
+                    session.save()
+                stations_data[session.station_name or '미지정'].append(session)
+
+            # 스타일
+            header_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
+            yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+            thin_border = Border(
+                left=Side(style='thin'), right=Side(style='thin'),
+                top=Side(style='thin'), bottom=Side(style='thin')
+            )
+            center_align = Alignment(horizontal='center', vertical='center')
+
+            # 항목 행 정의
+            row_items = [
+                ('수면폭', 'total_width', 'm', 3),
+                ('단면적', 'total_area', 'm²', 2),
+                ('윤변', 'wetted_perimeter', 'm', 3),
+                ('동수반경', 'hydraulic_radius', 'm', 3),
+                ('수위', 'stage', 'm', 3),
+                ('평균유속', 'mean_velocity', 'm/s', 3),
+                ('평균유량', 'estimated_discharge', 'm³/s', 3),
+                ('유속측선수', 'velocity_verticals', '개', 0),
+                ('불확실도', 'uncertainty', '%', 2),
+                ('수위고도', 'stage_elevation', 'El.m', 2),
+                ('유량조사 등급', 'quality_grade', '', 0),
+            ]
+
+            for stn_name, station_sessions in stations_data.items():
+                sheet_name = stn_name[:31].replace('[', '').replace(']', '').replace('/', '-')
+                ws = wb.create_sheet(title=sheet_name)
+
+                # 날짜별, 위치별 그룹화
+                date_location_data = defaultdict(dict)
+                dates_set = set()
+                locations_set = set()
+
+                for s in station_sessions:
+                    if s.measurement_date:
+                        date_str = f"{s.measurement_date.month}/{s.measurement_date.day}/{s.measurement_date.year}"
+                    else:
+                        date_str = '미지정'
+
+                    loc = s.setup_data.get('location_desc', '') if s.setup_data else ''
+                    if '상류' in loc:
+                        loc_key = '보 상류'
+                    elif '하류' in loc:
+                        loc_key = '보 하류'
+                    else:
+                        loc_key = loc or f'측정{s.session_number}'
+
+                    dates_set.add(date_str)
+                    locations_set.add(loc_key)
+                    date_location_data[date_str][loc_key] = s
+
+                dates = sorted(dates_set)
+                locations = sorted(locations_set) or ['측정1']
+
+                # 헤더
+                ws.cell(row=1, column=1, value='항목').border = thin_border
+                ws.cell(row=1, column=1).fill = header_fill
+                ws.cell(row=2, column=1, value='구분').border = thin_border
+                ws.cell(row=2, column=1).fill = header_fill
+
+                col = 2
+                for date in dates:
+                    num_locs = len(locations)
+                    ws.cell(row=1, column=col, value=date).border = thin_border
+                    ws.cell(row=1, column=col).fill = header_fill
+                    ws.cell(row=1, column=col).alignment = center_align
+                    if num_locs > 1:
+                        ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + num_locs - 1)
+
+                    for i, loc in enumerate(locations):
+                        ws.cell(row=2, column=col + i, value=loc).border = thin_border
+                        ws.cell(row=2, column=col + i).fill = header_fill
+                        ws.cell(row=2, column=col + i).alignment = center_align
+                    col += num_locs
+
+                unit_col = col
+                ws.cell(row=1, column=unit_col, value='단위').border = thin_border
+                ws.cell(row=1, column=unit_col).fill = header_fill
+                ws.merge_cells(start_row=1, start_column=unit_col, end_row=2, end_column=unit_col)
+
+                # 데이터 행
+                for row_idx, (item_name, attr, unit, decimals) in enumerate(row_items, start=3):
+                    ws.cell(row=row_idx, column=1, value=item_name).border = thin_border
+                    if item_name == '평균유량':
+                        ws.cell(row=row_idx, column=1).fill = yellow_fill
+
+                    col = 2
+                    for date in dates:
+                        for loc in locations:
+                            session = date_location_data.get(date, {}).get(loc)
+                            value = ''
+                            if session and attr:
+                                raw_value = getattr(session, attr, None)
+                                if raw_value is not None:
+                                    if decimals > 0 and isinstance(raw_value, (int, float)):
+                                        value = round(raw_value, decimals)
+                                    else:
+                                        value = raw_value
+
+                            cell = ws.cell(row=row_idx, column=col, value=value)
+                            cell.border = thin_border
+                            cell.alignment = center_align
+                            if item_name == '평균유량':
+                                cell.fill = yellow_fill
+                            col += 1
+
+                    ws.cell(row=row_idx, column=unit_col, value=unit).border = thin_border
+                    ws.cell(row=row_idx, column=unit_col).alignment = center_align
+
+                # 컬럼 너비
+                ws.column_dimensions['A'].width = 14
+                for i in range(2, unit_col + 1):
+                    ws.column_dimensions[get_column_letter(i)].width = 12
+
+                # 차트 이미지 삽입
+                chart_start_row = len(row_items) + 5
+                chart_count = 0
+
+                for date in dates:
+                    for loc in locations:
+                        session = date_location_data.get(date, {}).get(loc)
+                        if session:
+                            img_buffer = generate_chart_image(session)
+                            if img_buffer:
+                                img = XLImage(img_buffer)
+                                img.width = 400
+                                img.height = 240
+                                row_offset = (chart_count // 2) * 15
+                                col_offset = (chart_count % 2) * 8
+                                cell_ref = f"{get_column_letter(1 + col_offset)}{chart_start_row + row_offset}"
+                                ws.add_image(img, cell_ref)
+                                chart_count += 1
+
+            response = HttpResponse(
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = 'attachment; filename="analysis_summary.xlsx"'
+            wb.save(response)
+            return response
+
+        except ImportError as e:
+            print(f"Import error: {e}")
+            export_format = 'csv'
+
+    # CSV 폴백
+    headers = ['측정일', '지점명', '회차', '위치', '수위(m)', '수면폭(m)', '단면적(m²)',
+               '윤변(m)', '동수반경(m)', '평균유속(m/s)', '유량(m³/s)', '유속측선수', '불확실도(%)', '등급']
     rows = []
     for session in sessions:
-        if session.wetted_perimeter is None and session.rows_data:
-            session.calculate_analysis_results()
-            session.save()
-
         rows.append([
             session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else '',
-            session.station_name,
-            session.session_number,
-            session.setup_data.get('location_desc', ''),
+            session.station_name, session.session_number,
+            session.setup_data.get('location_desc', '') if session.setup_data else '',
             round(session.stage, 2) if session.stage else '',
             round(session.total_width, 2) if session.total_width else '',
             round(session.total_area, 4) if session.total_area else '',
@@ -2223,69 +2447,12 @@ def api_analysis_export(request):
             session.quality_grade or '',
         ])
 
-    # Excel 형식
-    if export_format == 'excel':
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter
-
-            wb = Workbook()
-            ws = wb.active
-            ws.title = '분석결과표'
-
-            # 헤더 스타일
-            header_font = Font(bold=True, color='FFFFFF')
-            header_fill = PatternFill(start_color='2563EB', end_color='2563EB', fill_type='solid')
-            header_align = Alignment(horizontal='center', vertical='center')
-            thin_border = Border(
-                left=Side(style='thin'),
-                right=Side(style='thin'),
-                top=Side(style='thin'),
-                bottom=Side(style='thin')
-            )
-
-            # 헤더 추가
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col, value=header)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = header_align
-                cell.border = thin_border
-
-            # 데이터 추가
-            for row_idx, row_data in enumerate(rows, 2):
-                for col_idx, value in enumerate(row_data, 1):
-                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
-                    cell.border = thin_border
-                    cell.alignment = Alignment(horizontal='center' if col_idx > 4 else 'left')
-
-            # 컬럼 너비 조정
-            column_widths = [12, 15, 6, 15, 10, 10, 12, 10, 10, 12, 12, 8, 10, 6]
-            for i, width in enumerate(column_widths, 1):
-                ws.column_dimensions[get_column_letter(i)].width = width
-
-            # 응답 생성
-            response = HttpResponse(
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = 'attachment; filename="analysis_summary.xlsx"'
-            wb.save(response)
-            return response
-
-        except ImportError:
-            # openpyxl 없으면 CSV로 폴백
-            export_format = 'csv'
-
-    # CSV 형식
     response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
     response['Content-Disposition'] = 'attachment; filename="analysis_summary.csv"'
-
     writer = csv.writer(response)
     writer.writerow(headers)
     for row in rows:
         writer.writerow(row)
-
     return response
 
 
