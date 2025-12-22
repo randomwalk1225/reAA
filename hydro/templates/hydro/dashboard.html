@@ -56,6 +56,32 @@
     .station-chip:not(.selected):hover {
         background: #d1d5db;
     }
+    .river-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.375rem 0.875rem;
+        border-radius: 9999px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+        border: 1px solid transparent;
+    }
+    .river-chip.selected {
+        background: #2563eb;
+        color: white;
+        border-color: #2563eb;
+    }
+    .river-chip:not(.selected) {
+        background: #f3f4f6;
+        color: #4b5563;
+        border-color: #e5e7eb;
+    }
+    .river-chip:not(.selected):hover {
+        background: #e5e7eb;
+        border-color: #d1d5db;
+    }
 </style>
 {% endblock %}
 
@@ -104,30 +130,124 @@
          x-transition:enter-end="opacity-100 translate-y-0"
          class="mb-6 bg-white rounded-xl shadow-sm border p-4">
 
-        <!-- Water Level Stations -->
+        <!-- Data Type Tabs -->
+        <div class="flex border-b mb-4">
+            <button @click="selectorTab = 'waterlevel'"
+                    class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+                    :class="selectorTab === 'waterlevel' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                수위 관측소
+            </button>
+            <button @click="selectorTab = 'rainfall'"
+                    class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+                    :class="selectorTab === 'rainfall' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                강수 관측소
+            </button>
+        </div>
+
+        <!-- River Filter Chips -->
         <div class="mb-4">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">수위 관측소</h3>
             <div class="flex flex-wrap gap-2">
-                <template x-for="station in allWaterlevelStations" :key="station.code">
-                    <button class="station-chip"
-                            :class="{'selected': selectedWlStations.includes(station.code)}"
-                            @click="toggleStation('wl', station.code)">
-                        <span x-text="station.name"></span>
+                <button @click="selectedRiver = null"
+                        class="river-chip"
+                        :class="selectedRiver === null ? 'selected' : ''">
+                    전체
+                </button>
+                <template x-for="river in rivers" :key="river">
+                    <button @click="selectedRiver = river; searchStations()"
+                            class="river-chip"
+                            :class="selectedRiver === river ? 'selected' : ''">
+                        <span x-text="river"></span>
+                        <span class="ml-1 text-xs opacity-70" x-text="'(' + (riverStats[river]?.[selectorTab] || 0) + ')'"></span>
                     </button>
                 </template>
             </div>
         </div>
 
-        <!-- Rainfall Stations -->
-        <div class="mb-4">
-            <h3 class="text-sm font-semibold text-gray-700 mb-3">강수 관측소</h3>
-            <div class="flex flex-wrap gap-2">
-                <template x-for="station in allRainfallStations" :key="station.code">
-                    <button class="station-chip"
-                            :class="{'selected': selectedRfStations.includes(station.code)}"
-                            @click="toggleStation('rf', station.code)">
-                        <span x-text="station.name"></span>
+        <!-- Search Input -->
+        <div class="relative mb-4">
+            <div class="relative">
+                <input type="text"
+                       x-model="searchQuery"
+                       @input.debounce.300ms="searchStations()"
+                       @focus="showDropdown = true"
+                       @keydown.escape="showDropdown = false"
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                       placeholder="관측소 이름, 코드, 주소로 검색...">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <div x-show="isSearching" class="absolute right-3 top-1/2 -translate-y-1/2">
+                    <svg class="animate-spin w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Search Results Dropdown -->
+            <div x-show="showDropdown && searchResults.length > 0"
+                 @click.away="showDropdown = false"
+                 x-cloak
+                 class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                <template x-for="station in searchResults" :key="station.code">
+                    <button @click="addStation(station.code, station.name); showDropdown = false; searchQuery = ''"
+                            class="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center justify-between group"
+                            :class="isStationSelected(station.code) ? 'bg-gray-50' : ''">
+                        <div>
+                            <span class="font-medium" x-text="station.name"></span>
+                            <span class="text-sm text-gray-500 ml-2" x-text="station.code"></span>
+                            <template x-if="station.address">
+                                <span class="text-xs text-gray-400 ml-2" x-text="station.address"></span>
+                            </template>
+                        </div>
+                        <template x-if="isStationSelected(station.code)">
+                            <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </template>
+                        <template x-if="!isStationSelected(station.code)">
+                            <svg class="w-5 h-5 text-gray-300 group-hover:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </template>
                     </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Selected Stations -->
+        <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">
+                선택된 관측소
+                <span class="text-gray-400" x-text="'(' + (selectorTab === 'waterlevel' ? selectedWlStations.length : selectedRfStations.length) + '개)'"></span>
+            </h4>
+            <div class="flex flex-wrap gap-2 min-h-[40px] p-2 bg-gray-50 rounded-lg">
+                <template x-if="selectorTab === 'waterlevel'">
+                    <template x-for="code in selectedWlStations" :key="code">
+                        <span class="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                            <span x-text="getStationName('waterlevel', code)"></span>
+                            <button @click="removeStation('wl', code)" class="ml-2 hover:text-blue-900">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </span>
+                    </template>
+                </template>
+                <template x-if="selectorTab === 'rainfall'">
+                    <template x-for="code in selectedRfStations" :key="code">
+                        <span class="inline-flex items-center px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-sm">
+                            <span x-text="getStationName('rainfall', code)"></span>
+                            <button @click="removeStation('rf', code)" class="ml-2 hover:text-cyan-900">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </span>
+                    </template>
+                </template>
+                <template x-if="(selectorTab === 'waterlevel' && selectedWlStations.length === 0) || (selectorTab === 'rainfall' && selectedRfStations.length === 0)">
+                    <span class="text-sm text-gray-400">관측소를 검색하여 추가하세요</span>
                 </template>
             </div>
         </div>
@@ -264,19 +384,6 @@
 
 {% block extra_js %}
 <script>
-// 전체 관측소 목록
-const ALL_WATERLEVEL_STATIONS = [
-    {% for code, name in all_waterlevel_stations.items %}
-    { code: "{{ code }}", name: "{{ name }}" }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-];
-
-const ALL_RAINFALL_STATIONS = [
-    {% for code, name in all_rainfall_stations.items %}
-    { code: "{{ code }}", name: "{{ name }}" }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-];
-
 // 초기 선택 관측소
 const INITIAL_WL_STATIONS = {{ selected_wl_stations|safe }};
 const INITIAL_RF_STATIONS = {{ selected_rf_stations|safe }};
@@ -318,15 +425,27 @@ function hydroDashboard() {
         refreshInterval: null,
         showSelector: false,
 
-        // 관측소 목록
-        allWaterlevelStations: ALL_WATERLEVEL_STATIONS,
-        allRainfallStations: ALL_RAINFALL_STATIONS,
+        // 관측소 선택 UI 상태
+        selectorTab: 'waterlevel',
+        rivers: [],
+        riverStats: {},
+        selectedRiver: null,
+        searchQuery: '',
+        searchResults: [],
+        showDropdown: false,
+        isSearching: false,
+
+        // 관측소 이름 캐시 (code -> name)
+        stationNameCache: {
+            waterlevel: {},
+            rainfall: {}
+        },
 
         // 선택된 관측소
         selectedWlStations: [...INITIAL_WL_STATIONS],
         selectedRfStations: [...INITIAL_RF_STATIONS],
 
-        init() {
+        async init() {
             // 비동기 로딩: 페이지 로드 후 데이터 가져오기
             {% if async_load %}
             this.refresh();
@@ -336,16 +455,90 @@ function hydroDashboard() {
             this.refreshInterval = setInterval(() => {
                 this.refresh();
             }, 2 * 60 * 1000);
+
+            // 강 목록 및 통계 로드
+            await this.loadRiversAndStats();
+
+            // 초기 선택된 관측소 이름 캐시
+            this.cacheInitialStationNames();
         },
 
-        toggleStation(type, code) {
+        async loadRiversAndStats() {
+            try {
+                const [riversRes, statsRes] = await Promise.all([
+                    fetch('/hydro/api/v2/stations/rivers/'),
+                    fetch('/hydro/api/v2/stations/stats/')
+                ]);
+                const riversData = await riversRes.json();
+                const statsData = await statsRes.json();
+
+                this.rivers = riversData.rivers || [];
+                this.riverStats = statsData.by_river || {};
+            } catch (error) {
+                console.error('강 목록 로드 실패:', error);
+            }
+        },
+
+        cacheInitialStationNames() {
+            // 초기 데이터에서 관측소 이름 캐시
+            INITIAL_WATERLEVEL.forEach(item => {
+                this.stationNameCache.waterlevel[item.station_code] = item.station_name;
+            });
+            INITIAL_RAINFALL.forEach(item => {
+                this.stationNameCache.rainfall[item.station_code] = item.station_name;
+            });
+        },
+
+        async searchStations() {
+            this.isSearching = true;
+            try {
+                const params = new URLSearchParams({
+                    type: this.selectorTab,
+                    limit: '20'
+                });
+                if (this.selectedRiver) {
+                    params.set('river', this.selectedRiver);
+                }
+                if (this.searchQuery.trim()) {
+                    params.set('q', this.searchQuery.trim());
+                }
+
+                const response = await fetch(`/hydro/api/v2/stations/search/?${params}`);
+                const data = await response.json();
+                this.searchResults = data.stations || [];
+                this.showDropdown = true;
+            } catch (error) {
+                console.error('관측소 검색 실패:', error);
+                this.searchResults = [];
+            } finally {
+                this.isSearching = false;
+            }
+        },
+
+        addStation(code, name) {
+            const arr = this.selectorTab === 'waterlevel' ? this.selectedWlStations : this.selectedRfStations;
+            if (!arr.includes(code)) {
+                arr.push(code);
+                // 이름 캐시에 저장
+                this.stationNameCache[this.selectorTab][code] = name;
+            }
+        },
+
+        removeStation(type, code) {
             const arr = type === 'wl' ? this.selectedWlStations : this.selectedRfStations;
             const idx = arr.indexOf(code);
             if (idx >= 0) {
                 arr.splice(idx, 1);
-            } else {
-                arr.push(code);
             }
+        },
+
+        isStationSelected(code) {
+            const arr = this.selectorTab === 'waterlevel' ? this.selectedWlStations : this.selectedRfStations;
+            return arr.includes(code);
+        },
+
+        getStationName(type, code) {
+            return this.stationNameCache[type][code] || code;
         },
 
         resetStations() {
@@ -376,6 +569,14 @@ function hydroDashboard() {
                 this.waterlevelData = data.waterlevel;
                 this.rainfallData = data.rainfall;
                 this.updatedAt = data.updated_at;
+
+                // 관측소 이름 캐시 업데이트
+                data.waterlevel?.forEach(item => {
+                    this.stationNameCache.waterlevel[item.station_code] = item.station_name;
+                });
+                data.rainfall?.forEach(item => {
+                    this.stationNameCache.rainfall[item.station_code] = item.station_name;
+                });
             } catch (error) {
                 console.error('데이터 갱신 실패:', error);
             } finally {
