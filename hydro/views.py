@@ -28,6 +28,13 @@ from .dam_discharge_service import (
     DAM_INFO,
     STATION_UPSTREAM_DAMS,
 )
+from .station_data import (
+    get_rivers,
+    get_stations,
+    get_station_by_code,
+    get_stations_by_river,
+    get_stats as get_station_stats,
+)
 
 
 def dashboard(request):
@@ -475,3 +482,72 @@ def api_dam_list(request):
             for station_code, upstreams in STATION_UPSTREAM_DAMS.items()
         },
     })
+
+
+# ============================================
+# 관측소 데이터 API (파일 기반)
+# ============================================
+
+@require_GET
+def api_station_rivers(request):
+    """API: 강 목록"""
+    return JsonResponse({
+        'rivers': get_rivers(),
+    })
+
+
+@require_GET
+def api_station_search(request):
+    """
+    API: 관측소 검색 (강별 필터 + 키워드 검색)
+
+    Query params:
+        type: 'waterlevel', 'rainfall', 'dam' (기본: waterlevel)
+        river: 강 이름 (예: '한강', '낙동강')
+        q: 검색어
+        limit: 최대 결과 수 (기본: 50)
+    """
+    station_type = request.GET.get('type', 'waterlevel')
+    river = request.GET.get('river')
+    query = request.GET.get('q', '').strip()
+    limit = int(request.GET.get('limit', 50))
+
+    # 빈 강 이름 처리
+    if river == '' or river == 'null':
+        river = None
+
+    stations = get_stations(
+        station_type=station_type,
+        river=river,
+        query=query if query else None,
+        limit=limit
+    )
+
+    return JsonResponse({
+        'stations': stations,
+        'count': len(stations),
+        'filters': {
+            'type': station_type,
+            'river': river,
+            'query': query,
+        }
+    })
+
+
+@require_GET
+def api_station_detail(request, code):
+    """API: 관측소 상세 정보"""
+    station = get_station_by_code(code)
+
+    if not station:
+        return JsonResponse({'error': '관측소를 찾을 수 없습니다.'}, status=404)
+
+    return JsonResponse({
+        'station': station,
+    })
+
+
+@require_GET
+def api_station_stats(request):
+    """API: 관측소 통계"""
+    return JsonResponse(get_station_stats())

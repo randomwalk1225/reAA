@@ -43,6 +43,7 @@ client_secret*.json
 *.json
 !railway.json
 !static/data/stations.json
+!hydro/data/stations.json
 extracted_*/
 test_*.py
 analyze_*.py
