@@ -2177,55 +2177,82 @@ def api_analysis_export(request):
     # 차트 생성 함수
     def generate_chart_image(session):
         """세션 데이터로 단면/유속 차트 이미지 생성"""
+        import traceback
         try:
             import matplotlib
             matplotlib.use('Agg')
             import matplotlib.pyplot as plt
-            from matplotlib import font_manager, rc
             from io import BytesIO
 
-            # 한글 폰트 설정
+            # 한글 폰트 설정 시도
             try:
-                rc('font', family='Malgun Gothic')
-            except:
-                pass
+                import matplotlib.font_manager as fm
+                # Linux/Railway용 폰트 경로들
+                font_paths = [
+                    '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+                    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                    'C:/Windows/Fonts/malgun.ttf',
+                ]
+                font_set = False
+                for fp in font_paths:
+                    try:
+                        if __import__('os').path.exists(fp):
+                            fm.fontManager.addfont(fp)
+                            plt.rcParams['font.family'] = fm.FontProperties(fname=fp).get_name()
+                            font_set = True
+                            break
+                    except:
+                        pass
+                if not font_set:
+                    plt.rcParams['font.family'] = 'DejaVu Sans'
+            except Exception as font_err:
+                print(f"Font setup warning: {font_err}")
+                plt.rcParams['font.family'] = 'DejaVu Sans'
+
             plt.rcParams['axes.unicode_minus'] = False
 
             rows = session.rows_data or []
             if not rows or len(rows) < 2:
+                print(f"No rows data for session {session.id}")
                 return None
 
             distances = [float(r.get('distance') or 0) for r in rows]
             depths = [-float(r.get('depth') or 0) for r in rows]
             velocities = [float(r.get('velocity') or 0) for r in rows]
 
+            if not distances or max(depths) == min(depths) == 0:
+                print(f"Invalid data for session {session.id}")
+                return None
+
             fig, ax1 = plt.subplots(figsize=(5, 3), dpi=100)
 
             # 수심 (단면)
-            ax1.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='수심')
+            ax1.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='Depth')
             ax1.plot(distances, depths, color='#1e3a5f', linewidth=2)
-            ax1.set_xlabel('거리 (m)', fontsize=9)
-            ax1.set_ylabel('수심 (m)', color='#1e3a5f', fontsize=9)
+            ax1.set_xlabel('Distance (m)', fontsize=9)
+            ax1.set_ylabel('Depth (m)', color='#1e3a5f', fontsize=9)
             ax1.tick_params(axis='y', labelcolor='#1e3a5f')
-            ax1.set_ylim(min(depths) * 1.2 if depths else -1, 0.1)
+            min_depth = min(depths) if depths else -1
+            ax1.set_ylim(min_depth * 1.2 if min_depth < 0 else -1, 0.1)
             ax1.axhline(y=0, color='#3b82f6', linewidth=1.5)
             ax1.grid(True, linestyle='--', alpha=0.5, color='gray')
             ax1.set_axisbelow(True)
 
             # 유속
             ax2 = ax1.twinx()
-            ax2.plot(distances, velocities, color='#ef4444', linewidth=2, marker='o', markersize=4, label='유속')
-            ax2.set_ylabel('유속 (m/s)', color='#ef4444', fontsize=9)
+            ax2.plot(distances, velocities, color='#ef4444', linewidth=2, marker='o', markersize=4, label='Velocity')
+            ax2.set_ylabel('Velocity (m/s)', color='#ef4444', fontsize=9)
             ax2.tick_params(axis='y', labelcolor='#ef4444')
-            ax2.set_ylim(0, max(velocities) * 1.3 if max(velocities) > 0 else 1)
+            max_vel = max(velocities) if velocities else 1
+            ax2.set_ylim(0, max_vel * 1.3 if max_vel > 0 else 1)
             ax2.grid(True, linestyle=':', alpha=0.3, color='#ef4444', axis='y')
 
             # 제목
             loc_desc = session.setup_data.get('location_desc', '') if session.setup_data else ''
-            title = f"{session.station_name or ''}"
+            title = f"{session.station_name or 'Station'}"
             if loc_desc:
                 title += f" ({loc_desc})"
-            plt.title(title, fontsize=10, fontweight='bold')
+            ax1.set_title(title, fontsize=10, fontweight='bold')
 
             # 범례
             lines1, labels1 = ax1.get_legend_handles_labels()
@@ -2238,9 +2265,17 @@ def api_analysis_export(request):
             plt.savefig(img_buffer, format='png', bbox_inches='tight', facecolor='white')
             plt.close(fig)
             img_buffer.seek(0)
+
+            # 버퍼 크기 확인
+            img_buffer.seek(0, 2)  # 끝으로 이동
+            size = img_buffer.tell()
+            img_buffer.seek(0)  # 다시 처음으로
+            print(f"Chart generated for session {session.id}: {size} bytes")
+
             return img_buffer
         except Exception as e:
-            print(f"Chart generation error: {e}")
+            print(f"Chart generation error for session {getattr(session, 'id', 'unknown')}: {e}")
+            traceback.print_exc()
             return None
 
     # 필터
