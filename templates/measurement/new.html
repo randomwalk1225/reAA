@@ -265,6 +265,48 @@
                 </div>
             </div>
 
+            <!-- 수질 정보 (VBA 동기화) -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">PH</label>
+                    <input type="number" step="0.1" name="ph" x-model="formData.ph"
+                           placeholder="7.0"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ORP (mV)</label>
+                    <input type="number" step="1" name="orp" x-model="formData.orp"
+                           placeholder="200"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">수온 (°C)</label>
+                    <input type="number" step="0.1" name="water_temp" x-model="formData.water_temp"
+                           placeholder="20.0"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">EC (μS/cm)</label>
+                    <input type="number" step="1" name="conductivity" x-model="formData.conductivity"
+                           placeholder="500"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">TDS (mg/L)</label>
+                    <input type="number" step="1" name="tds" x-model="formData.tds"
+                           placeholder="300"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
+            <!-- 비고 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">비고</label>
+                <textarea name="notes" x-model="formData.notes" rows="3"
+                          placeholder="특기사항, 측정 시 유의사항 등"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
+            </div>
+
             <hr class="my-6">
 
             <h3 class="text-md font-semibold text-gray-900 mb-4">측정 옵션</h3>
@@ -677,7 +719,15 @@ function measurementWizard() {
             // 추가 관측 정보 (VBA 동기화)
             water_condition: '',
             sediment_load: '',
-            bio_info: ''
+            bio_info: '',
+            // 수질 정보
+            ph: null,
+            orp: null,
+            water_temp: null,
+            conductivity: null,
+            tds: null,
+            // 비고
+            notes: ''
         },
 
         async init() {

@@ -38,6 +38,7 @@ MathJax = {
             <p class="text-primary-100 mb-1">유량 (Discharge)</p>
             <p class="text-4xl font-bold mb-2">{{ discharge|default:"--" }}</p>
             <p class="text-lg text-primary-100">m³/s</p>
+            <p class="text-sm text-primary-200 mt-1">= {{ discharge_daily|default:"--" }} m³/d</p>
             <div class="mt-4 pt-4 border-t border-primary-400">
                 <p class="text-sm text-primary-100">확장불확실도 (95%)</p>
                 <p class="text-xl font-semibold">± {{ uncertainty|default:"--" }}%</p>
@@ -82,6 +83,64 @@ MathJax = {
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 추가 정보 (VBA 동기화) -->
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">측정 정보</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 text-sm">
+            <div>
+                <p class="text-gray-500">공번</p>
+                <p class="font-medium">{{ dm_number|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500">하천명</p>
+                <p class="font-medium">{{ river_name|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500">위도</p>
+                <p class="font-medium font-mono">{{ latitude|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500">경도</p>
+                <p class="font-medium font-mono">{{ longitude|default:"--" }}</p>
+            </div>
+            <div>
+                <p class="text-gray-500">수위</p>
+                <p class="font-medium">{{ stage|default:"--" }} m</p>
+            </div>
+            <div>
+                <p class="text-gray-500">수위고도</p>
+                <p class="font-medium">{{ stage_elevation|default:"--" }} m</p>
+            </div>
+        </div>
+        {% if water_quality %}
+        <div class="mt-4 pt-4 border-t">
+            <p class="text-gray-500 mb-2">수질 정보</p>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                <div>
+                    <p class="text-gray-400">PH</p>
+                    <p class="font-medium">{{ ph|default:"--" }}</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">ORP</p>
+                    <p class="font-medium">{{ orp|default:"--" }} mV</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">수온</p>
+                    <p class="font-medium">{{ water_temp|default:"--" }} °C</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">EC</p>
+                    <p class="font-medium">{{ conductivity|default:"--" }} μS/cm</p>
+                </div>
+                <div>
+                    <p class="text-gray-400">TDS</p>
+                    <p class="font-medium">{{ tds|default:"--" }} mg/L</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Uncertainty Analysis & Chart -->

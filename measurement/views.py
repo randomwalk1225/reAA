@@ -410,8 +410,12 @@ def calculate_discharge(rows, calibration, meters=None):
     else:
         quality_grade = 'P'  # Poor
 
+    # 유량 일 단위 환산 (m³/s → m³/d)
+    discharge_daily = round(total_discharge * 86400, 0)
+
     return {
         'discharge': round(total_discharge, 3),
+        'discharge_daily': f"{discharge_daily:,.0f}",  # 천 단위 구분 포맷
         'area': round(total_area, 2),
         'avg_velocity': round(avg_velocity, 3),
         'max_velocity': round(max_velocity, 3),
