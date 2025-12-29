@@ -647,7 +647,7 @@
                             <div class="mt-4 p-3 bg-primary-50 rounded-lg flex items-center justify-between">
                                 <span class="text-sm text-primary-700">계산된 평균유속</span>
                                 <span class="text-xl font-bold text-primary-700"
-                                      x-text="row.velocity ? row.velocity.toFixed(4) + ' m/s' : '- m/s'"></span>
+                                      x-text="row.velocity ? row.velocity.toFixed(3) + ' m/s' : '- m/s'"></span>
                             </div>
 
                             <!-- Row Actions -->
@@ -1034,7 +1034,7 @@ function dataInputGrid() {
                     row.t_06d || '',
                     row.n_08d || '',
                     row.t_08d || '',
-                    row.velocity ? row.velocity.toFixed(4) : ''
+                    row.velocity ? row.velocity.toFixed(3) : ''
                 ].join(',') + '\n';
             });
 

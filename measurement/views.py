@@ -2570,7 +2570,7 @@ def api_analysis_export(request):
             round(session.total_area, 4) if session.total_area else '',
             round(session.wetted_perimeter, 4) if session.wetted_perimeter else '',
             round(session.hydraulic_radius, 4) if session.hydraulic_radius else '',
-            round(session.mean_velocity, 6) if session.mean_velocity else '',
+            round(session.mean_velocity, 3) if session.mean_velocity else '',
             round(session.estimated_discharge, 6) if session.estimated_discharge else '',
             session.velocity_verticals or '',
             round(session.uncertainty, 2) if session.uncertainty else '',
