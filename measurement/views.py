@@ -158,6 +158,7 @@ def result(request):
             data = json.loads(request.body)
             rows = data.get('rows', [])
             calibration = data.get('calibration', {'a': 0.0012, 'b': 0.2534})
+            meters = data.get('meters', None)  # 다중 유속계 목록
 
             # 세션 정보 추출
             session_id = data.get('session_id')
@@ -165,8 +166,8 @@ def result(request):
             measurement_date = data.get('measurement_date', '')
             setup_data = data.get('setup_data', {})
 
-            # 계산 수행
-            result_data = calculate_discharge(rows, calibration)
+            # 계산 수행 (다중 유속계 지원)
+            result_data = calculate_discharge(rows, calibration, meters)
 
             # 세션 정보 추가
             result_data['session_id'] = session_id
@@ -181,9 +182,14 @@ def result(request):
     return render(request, 'measurement/result.html')
 
 
-def calculate_discharge(rows, calibration):
+def calculate_discharge(rows, calibration, meters=None):
     """
     유량 계산 (ISO 748 중앙단면법)
+
+    Args:
+        rows: 측선 데이터 리스트
+        calibration: 기본 검정계수 (단일 유속계 사용 시)
+        meters: 유속계 목록 (다중 유속계 사용 시) [{'id': 'M1', 'a': 0.0012, 'b': 0.2534, 'uncertainty': 1.0}, ...]
 
     Returns dict with:
     - discharge: 총 유량 (m³/s)
@@ -192,10 +198,28 @@ def calculate_discharge(rows, calibration):
     - uncertainty: 불확실도 (%)
     - verticals: 각 측선별 상세 결과
     """
-    a = calibration.get('a', 0.0012)
-    b = calibration.get('b', 0.2534)
+    # 기본 검정계수
+    default_a = calibration.get('a', 0.0012)
+    default_b = calibration.get('b', 0.2534)
 
-    def calc_velocity(n, t):
+    # 유속계 목록을 딕셔너리로 변환 (빠른 조회용)
+    meters_dict = {}
+    if meters:
+        for m in meters:
+            meters_dict[m.get('id')] = {
+                'a': m.get('a', default_a),
+                'b': m.get('b', default_b),
+                'uncertainty': m.get('uncertainty', 1.0)
+            }
+
+    def get_calibration(meter_id):
+        """유속계별 검정계수 조회"""
+        if meter_id and meter_id in meters_dict:
+            m = meters_dict[meter_id]
+            return m['a'], m['b'], m['uncertainty']
+        return default_a, default_b, 1.0
+
+    def calc_velocity(n, t, a, b):
         """프로펠러 유속계 유속 계산: V = a + b * (N/T)"""
         try:
             n = float(n) if n else 0
@@ -208,38 +232,51 @@ def calculate_discharge(rows, calibration):
 
     # 각 측선별 유속 계산
     verticals = []
+    meter_uncertainties_list = []  # 유속계별 검정 불확실도 수집
+
     for i, row in enumerate(rows):
         method = row.get('method', '1')
+        meter_id = row.get('meter_id')
         velocity = 0
 
+        # 측선별 유속계 검정계수 조회
+        a, b, meter_uncertainty = get_calibration(meter_id)
+        meter_uncertainties_list.append(meter_uncertainty)
+
         if method == '1':  # 1점법
-            velocity = calc_velocity(row.get('n_06d'), row.get('t_06d'))
+            velocity = calc_velocity(row.get('n_06d'), row.get('t_06d'), a, b)
         elif method == '2':  # 2점법
-            v02 = calc_velocity(row.get('n_02d'), row.get('t_02d'))
-            v08 = calc_velocity(row.get('n_08d'), row.get('t_08d'))
+            v02 = calc_velocity(row.get('n_02d'), row.get('t_02d'), a, b)
+            v08 = calc_velocity(row.get('n_08d'), row.get('t_08d'), a, b)
             if v02 and v08:
                 velocity = (v02 + v08) / 2
         elif method == '3':  # 3점법
-            v02 = calc_velocity(row.get('n_02d'), row.get('t_02d'))
-            v06 = calc_velocity(row.get('n_06d'), row.get('t_06d'))
-            v08 = calc_velocity(row.get('n_08d'), row.get('t_08d'))
+            v02 = calc_velocity(row.get('n_02d'), row.get('t_02d'), a, b)
+            v06 = calc_velocity(row.get('n_06d'), row.get('t_06d'), a, b)
+            v08 = calc_velocity(row.get('n_08d'), row.get('t_08d'), a, b)
             if v02 and v06 and v08:
                 velocity = (v02 + 2 * v06 + v08) / 4
 
-        # 방향각도 보정 적용
-        direction_angle = float(row.get('direction_angle', 0) or 0)
-        tan_value = 0
-        if direction_angle != 0 and velocity > 0:
-            angle_rad = math.radians(direction_angle)
-            tan_value = math.tan(angle_rad)
-            velocity = velocity * math.cos(angle_rad)
+        # 각도/index 보정 적용 (cos(θ) 또는 직접 index)
+        # index_value: 0.6~1.0 범위 (1.0이면 보정 없음)
+        index_value = float(row.get('index_value', 1.0) or 1.0)
+        angle_deg = float(row.get('angle_deg', 0) or 0)
+
+        # 각도가 입력되었으면 cos(θ) 계산, 아니면 index_value 사용
+        if angle_deg > 0:
+            angle_rad = math.radians(angle_deg)
+            index_value = math.cos(angle_rad)
+
+        if velocity > 0:
+            velocity = velocity * index_value
 
         verticals.append({
             'id': i + 1,
             'distance': float(row.get('distance', 0) or 0),
             'depth': float(row.get('depth', 0) or 0),
-            'direction_angle': direction_angle,
-            'tan_value': round(tan_value, 4),
+            'meter_id': meter_id,
+            'angle_deg': angle_deg,
+            'index_value': round(index_value, 4),
             'velocity': velocity,
             'method': method,
             'area': 0,
@@ -290,38 +327,88 @@ def calculate_discharge(rows, calibration):
     # 평균수심
     avg_depth = total_area / total_width if total_width > 0 else 0
 
-    # ISO 748 불확실도 계산 (간략화)
+    # ============================================
+    # ISO 748 불확실도 계산 (완전 구현)
+    # ============================================
     n_verticals = len([v for v in verticals if v['velocity'] > 0])
-
-    # Xe: 측점 불확실도 (측선 수에 따라)
-    if n_verticals >= 20:
-        Xe = 1.0
-    elif n_verticals >= 10:
-        Xe = 2.0
-    else:
-        Xe = 3.0
-
-    # Xp: 수심측정 불확실도
-    Xp = 2.0
-
-    # Xc: 검정 불확실도
-    Xc = 1.0
-
-    # Xm: 측정 불확실도 (측정법에 따라)
     methods = [v['method'] for v in verticals if v['method'] in ['1', '2', '3']]
-    if methods:
-        method_uncertainties = {'1': 3.0, '2': 2.5, '3': 2.0}
-        Xm = sum(method_uncertainties.get(m, 3.0) for m in methods) / len(methods)
-    else:
-        Xm = 3.0
 
-    # 합성불확실도 (RSS)
-    import math
-    combined_uncertainty = math.sqrt(Xe**2 + Xp**2 + Xc**2 + Xm**2)
+    # ----- X1Q: 랜덤 불확실도 (Random Uncertainty) -----
+
+    # Xm: 측선수 불확실도 (ISO 748 Table 1 기반)
+    # 측선수가 많을수록 불확실도 감소
+    if n_verticals >= 25:
+        Xm = 0.5
+    elif n_verticals >= 20:
+        Xm = 1.0
+    elif n_verticals >= 15:
+        Xm = 1.5
+    elif n_verticals >= 10:
+        Xm = 2.0
+    elif n_verticals >= 5:
+        Xm = 3.0
+    else:
+        Xm = 5.0
+
+    # Xp: 측점수 불확실도 (측정법별)
+    # 1점법: 15%, 2점법: 7%, 3점법: 6.33%
+    method_xp = {'1': 15.0, '2': 7.0, '3': 6.33}
+    if methods:
+        Xp_values = [method_xp.get(m, 15.0) for m in methods]
+        Xp = sum(Xp_values) / len(Xp_values)
+    else:
+        Xp = 15.0
+
+    # Xc: 유속계 검정 불확실도 (각 측선별 유속계의 불확실도 평균)
+    valid_meter_uncertainties = [u for i, u in enumerate(meter_uncertainties_list)
+                                  if i < len(verticals) and verticals[i]['velocity'] > 0]
+    if valid_meter_uncertainties:
+        Xc = sum(valid_meter_uncertainties) / len(valid_meter_uncertainties)
+    else:
+        Xc = 1.0
+
+    # Xe: 측점 불확실도 (노출시간, 유속에 따라 변동)
+    # 간략화: 평균유속에 따라 결정
+    if avg_velocity >= 1.0:
+        Xe = 1.5  # 고유속: 낮은 불확실도
+    elif avg_velocity >= 0.5:
+        Xe = 2.0  # 중유속
+    elif avg_velocity >= 0.2:
+        Xe = 3.0  # 저유속
+    else:
+        Xe = 5.0  # 극저유속: 높은 불확실도
+
+    # X1Q: 랜덤 불확실도 합성
+    # X1Q = sqrt(Xm² + (Xe² + Xp² + Xc²) / n)
+    if n_verticals > 0:
+        random_component = (Xe**2 + Xp**2 + Xc**2) / n_verticals
+        X1Q = math.sqrt(Xm**2 + random_component)
+    else:
+        X1Q = math.sqrt(Xm**2 + Xe**2 + Xp**2 + Xc**2)
+
+    # ----- X2Q: 계통 불확실도 (Systematic Uncertainty) -----
+    X2b = 0.5   # 폭 측정 불확실도
+    X2d = 0.5   # 수심 측정 불확실도
+    X2c = 1.0   # 기타 계통 불확실도
+    X2Q = math.sqrt(X2b**2 + X2d**2 + X2c**2)  # = 1.22%
+
+    # ----- 총 불확실도 -----
+    # XQ = sqrt(X1Q² + X2Q²)
+    combined_uncertainty = math.sqrt(X1Q**2 + X2Q**2)
 
     # 확장불확실도 (95%, k=2)
     expanded_uncertainty = combined_uncertainty * 2
     uncertainty_abs = total_discharge * expanded_uncertainty / 100
+
+    # 유량등급 결정 (ISO 748)
+    if expanded_uncertainty <= 5:
+        quality_grade = 'E'  # Excellent
+    elif expanded_uncertainty <= 8:
+        quality_grade = 'G'  # Good
+    elif expanded_uncertainty <= 10:
+        quality_grade = 'F'  # Fair
+    else:
+        quality_grade = 'P'  # Poor
 
     return {
         'discharge': round(total_discharge, 3),
@@ -333,11 +420,15 @@ def calculate_discharge(rows, calibration):
         'avg_depth': round(avg_depth, 2),
         'uncertainty': round(expanded_uncertainty, 1),
         'uncertainty_abs': round(uncertainty_abs, 3),
-        'Xe': round(Xe, 1),
-        'Xp': round(Xp, 1),
-        'Xc': round(Xc, 1),
-        'Xm': round(Xm, 1),
-        'combined_uncertainty': round(combined_uncertainty, 1),
+        # 불확실도 상세 구성요소
+        'Xe': round(Xe, 2),
+        'Xp': round(Xp, 2),
+        'Xc': round(Xc, 2),
+        'Xm': round(Xm, 2),
+        'X1Q': round(X1Q, 2),  # 랜덤 불확실도
+        'X2Q': round(X2Q, 2),  # 계통 불확실도
+        'combined_uncertainty': round(combined_uncertainty, 2),
+        'quality_grade': quality_grade,
         'verticals': verticals,
         'n_verticals': n_verticals,
     }

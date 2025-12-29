@@ -88,9 +88,19 @@ MathJax = {
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <!-- Uncertainty Components -->
         <div class="bg-white rounded-xl shadow-sm border p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">불확실도 구성요소 (ISO 748)</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-900">불확실도 구성요소 (ISO 748)</h2>
+                <!-- 유량등급 뱃지 -->
+                <span class="px-3 py-1 rounded-full text-sm font-bold
+                    {% if quality_grade == 'E' %}bg-green-100 text-green-800
+                    {% elif quality_grade == 'G' %}bg-blue-100 text-blue-800
+                    {% elif quality_grade == 'F' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-red-100 text-red-800{% endif %}">
+                    등급: {{ quality_grade|default:"--" }}
+                </span>
+            </div>
 
-            <div class="space-y-4">
+            <div class="space-y-3">
                 <!-- Xe -->
                 <div>
                     <div class="flex justify-between text-sm mb-1">
@@ -98,20 +108,21 @@ MathJax = {
                         <span class="font-medium">{{ Xe|default:"--" }}%</span>
                     </div>
                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-blue-500 rounded-full" style="width: {% widthratio Xe 5 100 %}%"></div>
+                        <div class="h-full bg-blue-500 rounded-full" style="width: {% widthratio Xe 10 100 %}%"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-1">측선 수: {{ n_verticals|default:"--" }}개</p>
+                    <p class="text-xs text-gray-400 mt-1">유속 기반 산정</p>
                 </div>
 
                 <!-- Xp -->
                 <div>
                     <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Xp (수심측정 불확실도)</span>
+                        <span class="text-gray-600">Xp (측점수 불확실도)</span>
                         <span class="font-medium">{{ Xp|default:"--" }}%</span>
                     </div>
                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-green-500 rounded-full" style="width: {% widthratio Xp 5 100 %}%"></div>
+                        <div class="h-full bg-green-500 rounded-full" style="width: {% widthratio Xp 15 100 %}%"></div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-1">1점법=15%, 2점법=7%, 3점법=6.33%</p>
                 </div>
 
                 <!-- Xc -->
@@ -123,28 +134,42 @@ MathJax = {
                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div class="h-full bg-yellow-500 rounded-full" style="width: {% widthratio Xc 5 100 %}%"></div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-1">유속계별 검정 불확실도</p>
                 </div>
 
                 <!-- Xm -->
                 <div>
                     <div class="flex justify-between text-sm mb-1">
-                        <span class="text-gray-600">Xm (측정 불확실도)</span>
+                        <span class="text-gray-600">Xm (측선수 불확실도)</span>
                         <span class="font-medium">{{ Xm|default:"--" }}%</span>
                     </div>
                     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div class="h-full bg-red-500 rounded-full" style="width: {% widthratio Xm 5 100 %}%"></div>
                     </div>
+                    <p class="text-xs text-gray-400 mt-1">측선 수: {{ n_verticals|default:"--" }}개</p>
                 </div>
 
-                <hr class="my-4">
+                <hr class="my-3">
+
+                <!-- X1Q, X2Q -->
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-blue-50 rounded-lg p-2">
+                        <div class="text-blue-600 text-xs">X1Q (랜덤)</div>
+                        <div class="font-bold text-blue-800">{{ X1Q|default:"--" }}%</div>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-2">
+                        <div class="text-purple-600 text-xs">X2Q (계통)</div>
+                        <div class="font-bold text-purple-800">{{ X2Q|default:"1.22" }}%</div>
+                    </div>
+                </div>
 
                 <!-- Combined -->
                 <div class="bg-gray-50 rounded-lg p-3">
                     <div class="flex justify-between">
-                        <span class="font-medium text-gray-900">합성표준불확실도 (RSS)</span>
+                        <span class="font-medium text-gray-900">합성표준불확실도</span>
                         <span class="font-bold text-gray-900">{{ combined_uncertainty|default:"--" }}%</span>
                     </div>
-                    <p class="text-sm text-gray-500 mt-1">$u(Q) = \sqrt{X_e^2 + X_p^2 + X_c^2 + X_m^2}$</p>
+                    <p class="text-xs text-gray-500 mt-1">$u(Q) = \sqrt{X_{1Q}^2 + X_{2Q}^2}$</p>
                     <div class="flex justify-between mt-2">
                         <span class="font-medium text-primary-600">확장불확실도 ($k=2$)</span>
                         <span class="font-bold text-primary-600">{{ uncertainty|default:"--" }}%</span>

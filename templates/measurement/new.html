@@ -238,6 +238,33 @@
                 </div>
             </div>
 
+            <!-- 추가 관측 정보 (VBA 동기화) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">하천수 상태</label>
+                    <select name="water_condition" x-model="formData.water_condition"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <option value="">선택</option>
+                        <option value="맑음">맑음</option>
+                        <option value="약간 혼탁">약간 혼탁</option>
+                        <option value="혼탁">혼탁</option>
+                        <option value="매우 혼탁">매우 혼탁</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">유사량</label>
+                    <input type="text" name="sediment_load" x-model="formData.sediment_load"
+                           placeholder="예: 낮음, 중간, 높음"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">생물 정보 (Bio)</label>
+                    <input type="text" name="bio_info" x-model="formData.bio_info"
+                           placeholder="예: 수초, 조류 등"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+
             <hr class="my-6">
 
             <h3 class="text-md font-semibold text-gray-900 mb-4">측정 옵션</h3>
@@ -646,7 +673,11 @@ function measurementWizard() {
             use_multiple_meters: false,
             additional_meters: [],
             estimated_verticals: 10,
-            default_time: 60
+            default_time: 60,
+            // 추가 관측 정보 (VBA 동기화)
+            water_condition: '',
+            sediment_load: '',
+            bio_info: ''
         },
 
         async init() {
