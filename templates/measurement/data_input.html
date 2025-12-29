@@ -238,12 +238,12 @@
                                     <span x-show="angleInputMode === 'index'">index<br><span class="font-normal text-gray-500">(보정)</span></span>
                                     <span class="text-xs text-blue-500 block">클릭전환</span>
                                 </th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(s)</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
+                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
                                 <th class="border-b px-2 py-2 text-center col-velocity">유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
                             </tr>
                             <tr class="bg-gray-50 text-xs text-gray-500">
@@ -253,12 +253,12 @@
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r" x-text="angleInputMode === 'angle' ? 'cos→index' : '0.6~1.0'"></th>
-                                <th class="border-b border-r px-2 py-1">0.2D</th>
-                                <th class="border-b border-r px-2 py-1">0.2D</th>
-                                <th class="border-b border-r px-2 py-1">0.6D</th>
-                                <th class="border-b border-r px-2 py-1">0.6D</th>
-                                <th class="border-b border-r px-2 py-1">0.8D</th>
-                                <th class="border-b border-r px-2 py-1">0.8D</th>
+                                <th class="border-b border-r px-2 py-1">V0.2</th>
+                                <th class="border-b border-r px-2 py-1">V0.2</th>
+                                <th class="border-b border-r px-2 py-1">V0.6</th>
+                                <th class="border-b border-r px-2 py-1">V0.6</th>
+                                <th class="border-b border-r px-2 py-1">V0.8</th>
+                                <th class="border-b border-r px-2 py-1">V0.8</th>
                                 <th class="border-b"></th>
                             </tr>
                         </thead>
@@ -577,15 +577,15 @@
                             <div class="space-y-2">
                                 <!-- 0.2D -->
                                 <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>0.2D (표층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                    <label>V0.2 (표층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
                                     <div class="inputs">
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
                                             <input type="number" x-model="row.n_02d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                         </div>
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
                                             <input type="number" x-model="row.t_02d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                             <span class="text-xs text-gray-400">초</span>
@@ -595,15 +595,15 @@
 
                                 <!-- 0.6D -->
                                 <div class="depth-item" :class="!['1','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>0.6D (중층) <span x-show="!['1','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                    <label>V0.6 (중층) <span x-show="!['1','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
                                     <div class="inputs">
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
                                             <input type="number" x-model="row.n_06d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                         </div>
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
                                             <input type="number" x-model="row.t_06d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                             <span class="text-xs text-gray-400">초</span>
@@ -613,15 +613,15 @@
 
                                 <!-- 0.8D -->
                                 <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>0.8D (저층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                    <label>V0.8 (저층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
                                     <div class="inputs">
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">N:</span>
+                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
                                             <input type="number" x-model="row.n_08d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                         </div>
                                         <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">T:</span>
+                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
                                             <input type="number" x-model="row.t_08d"
                                                    @input="calculateVelocity(index)" placeholder="-">
                                             <span class="text-xs text-gray-400">초</span>
