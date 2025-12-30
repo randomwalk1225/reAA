@@ -25,6 +25,7 @@ dependencies = [
     "earthengine-api>=0.1.390",
     "pyarrow>=22.0.0",
     "matplotlib>=3.8",
+    "playwright>=1.57.0",
 ]
 
 [project.scripts]

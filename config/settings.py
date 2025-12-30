@@ -212,6 +212,9 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
+# HTTPS 강제 (OAuth 리다이렉트 URI용)
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
+
 # 이메일 백엔드 (콘솔 출력, 프로덕션에서는 SMTP 설정 필요)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
