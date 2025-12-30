@@ -597,6 +597,18 @@ def export_pdf(request):
     from reportlab.pdfbase.ttfonts import TTFont
     from .models import MeasurementSession
     import os
+    from django.conf import settings
+
+    # 한글 폰트 등록
+    font_path = os.path.join(settings.BASE_DIR, 'static', 'fonts', 'NotoSansKR-Regular.ttf')
+    if os.path.exists(font_path):
+        try:
+            pdfmetrics.registerFont(TTFont('NotoSansKR', font_path))
+            KOREAN_FONT = 'NotoSansKR'
+        except:
+            KOREAN_FONT = 'Helvetica'
+    else:
+        KOREAN_FONT = 'Helvetica'
 
     session_id = request.GET.get('session_id')
 
@@ -651,6 +663,7 @@ def export_pdf(request):
     title_style = ParagraphStyle(
         'Title',
         parent=styles['Heading1'],
+        fontName=KOREAN_FONT,
         fontSize=16,
         spaceAfter=12,
         alignment=1  # center
@@ -658,7 +671,16 @@ def export_pdf(request):
     normal_style = ParagraphStyle(
         'Normal',
         parent=styles['Normal'],
+        fontName=KOREAN_FONT,
         fontSize=10,
+        spaceAfter=6
+    )
+    # 한글 폰트가 적용된 Heading2 스타일
+    heading2_style = ParagraphStyle(
+        'Heading2Korean',
+        parent=styles['Heading2'],
+        fontName=KOREAN_FONT,
+        fontSize=12,
         spaceAfter=6
     )
 
@@ -677,6 +699,7 @@ def export_pdf(request):
     info_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9)),
         ('BACKGROUND', (2, 0), (2, -1), colors.Color(0.9, 0.9, 0.9)),
+        ('FONTNAME', (0, 0), (-1, -1), KOREAN_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -689,7 +712,7 @@ def export_pdf(request):
     elements.append(Spacer(1, 10*mm))
 
     # 상세 데이터 테이블
-    elements.append(Paragraph("Detailed Results by Vertical", styles['Heading2']))
+    elements.append(Paragraph("Detailed Results by Vertical", heading2_style))
     elements.append(Spacer(1, 5*mm))
 
     table_data = [['No.', 'Distance(m)', 'Depth(m)', 'Velocity(m/s)', 'Area(m²)', 'Discharge(m³/s)', 'Ratio']]
@@ -700,13 +723,13 @@ def export_pdf(request):
     detail_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.27, 0.45, 0.77)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, -1), KOREAN_FONT),
         ('FONTSIZE', (0, 0), (-1, 0), 9),
         ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.9, 0.9, 0.9)),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]))
@@ -714,7 +737,7 @@ def export_pdf(request):
     elements.append(Spacer(1, 10*mm))
 
     # 불확실도 정보
-    elements.append(Paragraph("Uncertainty Analysis (ISO 748)", styles['Heading2']))
+    elements.append(Paragraph("Uncertainty Analysis (ISO 748)", heading2_style))
     elements.append(Spacer(1, 5*mm))
 
     unc_data = [
@@ -729,13 +752,13 @@ def export_pdf(request):
     unc_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.27, 0.45, 0.77)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, -1), KOREAN_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('ALIGN', (0, 0), (1, -1), 'CENTER'),
         ('ALIGN', (2, 0), (2, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.85, 0.92, 0.98)),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]))
