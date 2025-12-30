@@ -2231,11 +2231,8 @@ def api_analysis_summary(request):
     start_date = request.GET.get('start_date', '')
     end_date = request.GET.get('end_date', '')
 
-    # 쿼리 생성
+    # 쿼리 생성 (로그인 여부와 관계없이 모든 데이터 표시)
     sessions = MeasurementSession.objects.all()
-
-    if request.user.is_authenticated:
-        sessions = sessions.filter(user=request.user)
 
     if station_name:
         sessions = sessions.filter(station_name__icontains=station_name)
