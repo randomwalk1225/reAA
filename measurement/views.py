@@ -2302,8 +2302,14 @@ def api_analysis_export(request):
             # 한글 폰트 설정 시도
             try:
                 import matplotlib.font_manager as fm
-                # Linux/Railway용 폰트 경로들
+                import os
+                from django.conf import settings
+
+                # 프로젝트 static 폴더의 NotoSansKR 폰트 우선 사용
+                noto_font_path = os.path.join(settings.BASE_DIR, 'static', 'fonts', 'NotoSansKR-Regular.ttf')
+
                 font_paths = [
+                    noto_font_path,  # 프로젝트 내 한글 폰트 우선
                     '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
                     '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
                     'C:/Windows/Fonts/malgun.ttf',
@@ -2311,15 +2317,19 @@ def api_analysis_export(request):
                 font_set = False
                 for fp in font_paths:
                     try:
-                        if __import__('os').path.exists(fp):
+                        if os.path.exists(fp):
                             fm.fontManager.addfont(fp)
-                            plt.rcParams['font.family'] = fm.FontProperties(fname=fp).get_name()
+                            font_prop = fm.FontProperties(fname=fp)
+                            plt.rcParams['font.family'] = font_prop.get_name()
                             font_set = True
+                            print(f"Chart font set to: {fp}")
                             break
-                    except:
+                    except Exception as e:
+                        print(f"Font {fp} failed: {e}")
                         pass
                 if not font_set:
                     plt.rcParams['font.family'] = 'DejaVu Sans'
+                    print("Using fallback font: DejaVu Sans")
             except Exception as font_err:
                 print(f"Font setup warning: {font_err}")
                 plt.rcParams['font.family'] = 'DejaVu Sans'
