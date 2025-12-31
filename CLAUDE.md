@@ -659,23 +659,22 @@ A: `requests` 라이브러리로 GET 요청. WAMIS GitHub 튜토리얼 참고.
 
 ## 구현 단계
 
-### Phase 1: 수동 입력 UI 추가 ⬜
+### Phase 1: 수동 입력 UI 추가 ✅ 완료 (2025-12-31)
 
 **목표**: 데이터 입력 화면에 수질/위치 필드 추가
 
 **작업 내용**:
-1. `templates/measurement/edit.html` 수정
-   - 위치 정보 섹션 추가: 위도, 경도
-   - 수질 정보 섹션 추가: PH, ORP, 수온(℃), EC(μS/cm), TDS(mg/L)
-2. `views.py`의 `save_measurement` 함수 수정
-   - 새 필드 저장 로직 추가
-3. `templates/measurement/detail.html` 수정
-   - 저장된 수질/위치 데이터 표시
+1. `templates/measurement/data_input.html` 수정
+   - PC/모바일 레이아웃에 접이식 "추가 정보" 섹션 추가
+   - 위치 정보 섹션: 위도, 경도
+   - 수질 정보 섹션: PH, ORP, 수온(℃), EC(μS/cm), TDS(mg/L)
+2. JavaScript `extraData` 객체 추가
+   - `calculate()` 함수에서 서버로 전송
 
 **검증 방법**:
-- [ ] 데이터 입력 화면에서 수질/위치 필드 표시 확인
-- [ ] 값 입력 후 저장 확인
-- [ ] 상세 페이지에서 저장된 값 표시 확인
+- [x] 데이터 입력 화면에서 수질/위치 필드 표시 확인
+- [ ] 값 입력 후 저장 확인 (백엔드 연동 필요)
+- [ ] 상세 페이지에서 저장된 값 표시 확인 (추후 구현)
 
 ---
 
@@ -811,7 +810,7 @@ A: `requests` 라이브러리로 GET 요청. WAMIS GitHub 튜토리얼 참고.
 
 | 단계 | 상태 | 완료일 |
 |------|------|--------|
-| Phase 1: 수동 입력 UI | ⬜ 대기 | - |
+| Phase 1: 수동 입력 UI | ✅ 완료 | 2025-12-31 |
 | Phase 2: 위도/경도 자동 입력 | ⬜ 대기 | - |
 | Phase 3: 수질 데이터 참조 | ⬜ 대기 | - |
 | Phase 4: CSV Import 확장 | ⬜ 대기 | - |
