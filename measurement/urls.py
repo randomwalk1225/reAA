@@ -82,4 +82,8 @@ urlpatterns = [
 
     # 데이터 임포트
     path('api/import/parquet/', views.api_parquet_import, name='api_parquet_import'),
+
+    # CSV 일괄 가져오기
+    path('batch-import/', views.batch_import, name='batch_import'),
+    path('api/import/csv-batch/', views.api_batch_import_csv, name='api_batch_import_csv'),
 ]

@@ -2773,3 +2773,175 @@ def api_parquet_import(request):
 def analysis_summary_view(request):
     """분석결과표 페이지"""
     return render(request, 'measurement/analysis_summary.html')
+
+
+def batch_import(request):
+    """CSV 일괄 가져오기 페이지"""
+    return render(request, 'measurement/batch_import.html')
+
+
+@csrf_exempt
+@require_POST
+def api_batch_import_csv(request):
+    """CSV 일괄 가져오기 API
+
+    여러 CSV 파일을 받아서 각각 MeasurementSession으로 저장
+    파일명 형식: {하천명}_{날짜}_{위치}.csv (예: 대종천_20250501_보상류.csv)
+    """
+    from .models import MeasurementSession, Meter
+    import re
+
+    try:
+        files = request.FILES.getlist('files')
+        if not files:
+            return JsonResponse({'error': 'CSV 파일을 선택해주세요.'}, status=400)
+
+        # 유속계 정보 (기본값 또는 요청에서 받음)
+        calibration_a = float(request.POST.get('calibration_a', 0.0116))
+        calibration_b = float(request.POST.get('calibration_b', 0.2505))
+        calibration = {'a': calibration_a, 'b': calibration_b}
+
+        # 사용자/세션 식별
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key or ''
+        if not session_key and not user:
+            request.session.create()
+            session_key = request.session.session_key
+
+        results = []
+        errors = []
+
+        for file in files:
+            filename = file.name
+            try:
+                # 파일명에서 정보 파싱: 하천명_날짜_위치.csv
+                name_without_ext = filename.rsplit('.', 1)[0]
+                parts = name_without_ext.split('_')
+
+                river_name = ''
+                measurement_date = None
+                location = ''
+
+                if len(parts) >= 3:
+                    river_name = parts[0]  # 대종천
+                    date_str = parts[1]    # 20250501
+                    location = parts[2]    # 보상류
+
+                    # 날짜 파싱
+                    try:
+                        measurement_date = datetime.strptime(date_str, '%Y%m%d').date()
+                    except:
+                        pass
+                elif len(parts) == 2:
+                    # 날짜_위치 형식
+                    date_str = parts[0]
+                    location = parts[1]
+                    try:
+                        measurement_date = datetime.strptime(date_str, '%Y%m%d').date()
+                    except:
+                        pass
+
+                # station_name 생성
+                station_name = f"{river_name} {location}".strip() if river_name else location
+
+                # CSV 파싱
+                content = file.read().decode('utf-8-sig')
+                lines = content.strip().split('\n')
+
+                # 헤더 확인
+                start_index = 0
+                first_line = lines[0].split(',')
+                if not first_line[0].replace('.', '').replace('-', '').isdigit():
+                    start_index = 1
+
+                rows = []
+                for i, line in enumerate(lines[start_index:], 1):
+                    values = [v.strip() for v in line.split(',')]
+                    if len(values) < 2:
+                        continue
+
+                    distance = float(values[0]) if values[0] else 0
+                    depth = float(values[1]) if values[1] else 0
+
+                    # 측정법 자동 결정
+                    if depth == 0:
+                        method = 'LEW' if i == 1 else 'REW'
+                    elif depth < 0.6:
+                        method = '1'
+                    elif depth < 1.0:
+                        method = '2'
+                    else:
+                        method = '3'
+
+                    row = {
+                        'id': i,
+                        'distance': distance,
+                        'depth': depth,
+                        'method': method,
+                        'index_value': float(values[2]) if len(values) > 2 and values[2] else 1.0,
+                        'n_02d': float(values[3]) if len(values) > 3 and values[3] else None,
+                        't_02d': float(values[4]) if len(values) > 4 and values[4] else None,
+                        'n_06d': float(values[5]) if len(values) > 5 and values[5] else None,
+                        't_06d': float(values[6]) if len(values) > 6 and values[6] else None,
+                        'n_08d': float(values[7]) if len(values) > 7 and values[7] else None,
+                        't_08d': float(values[8]) if len(values) > 8 and values[8] else None,
+                    }
+                    rows.append(row)
+
+                if not rows:
+                    errors.append({'filename': filename, 'error': '유효한 데이터가 없습니다.'})
+                    continue
+
+                # 유량 계산
+                result_data = calculate_discharge(rows, calibration)
+
+                # MeasurementSession 생성
+                session = MeasurementSession.objects.create(
+                    user=user,
+                    session_key=session_key,
+                    station_name=station_name,
+                    measurement_date=measurement_date,
+                    rows_data=rows,
+                    calibration_data=calibration,
+                    setup_data={
+                        'river_name': river_name,
+                        'location': location,
+                        'source_file': filename,
+                        'final_discharge': result_data.get('discharge'),
+                        'final_uncertainty': result_data.get('uncertainty'),
+                        'final_avg_velocity': result_data.get('avg_velocity'),
+                    },
+                    estimated_discharge=result_data.get('discharge'),
+                    total_width=result_data.get('width'),
+                    max_depth=result_data.get('avg_depth'),
+                    total_area=result_data.get('area'),
+                )
+
+                # 분석 결과 계산 및 저장
+                session.calculate_analysis_results()
+                session.save()
+
+                results.append({
+                    'filename': filename,
+                    'session_id': session.pk,
+                    'station_name': station_name,
+                    'measurement_date': measurement_date.strftime('%Y-%m-%d') if measurement_date else None,
+                    'discharge': result_data.get('discharge'),
+                    'area': result_data.get('area'),
+                    'width': result_data.get('width'),
+                    'uncertainty': result_data.get('uncertainty'),
+                })
+
+            except Exception as e:
+                errors.append({'filename': filename, 'error': str(e)})
+
+        return JsonResponse({
+            'success': True,
+            'imported': len(results),
+            'failed': len(errors),
+            'results': results,
+            'errors': errors,
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
