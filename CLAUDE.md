@@ -678,35 +678,23 @@ A: `requests` 라이브러리로 GET 요청. WAMIS GitHub 튜토리얼 참고.
 
 ---
 
-### Phase 2: 위도/경도 자동 입력 ⬜
+### Phase 2: 위도/경도 자동 입력 ✅ 완료 (2025-12-31)
 
 **목표**: 관측소 선택 시 해당 관측소의 좌표 자동 입력
 
 **데이터 소스**:
-- 한강홍수통제소 표준수문DB API
-- 엔드포인트: `https://api.hrfco.go.kr/{ServiceKey}/waterlevel/info/{StationCode}.json`
+- `hydro/data/stations.json` 파일 (lat, lon 필드 포함)
 
 **작업 내용**:
-1. HRFCO API에서 관측소 정보 조회 시 좌표 포함하여 반환
-2. 프론트엔드에서 관측소 선택 시 위도/경도 필드 자동 채우기
-3. "자동 입력" 버튼 또는 체크박스 UI 추가
-4. 수동 수정 가능하도록 필드 편집 허용
-
-**API 응답 예시** (확인 필요):
-```json
-{
-  "stationCode": "1018683",
-  "stationName": "한강대교",
-  "latitude": 37.5172,
-  "longitude": 126.9784,
-  "riverName": "한강"
-}
-```
+1. `new.html`: selectStation 함수에서 lat/lon 값을 formData에 저장
+2. 선택된 관측소 정보 UI에 좌표 표시 추가
+3. `data_input.html`: sessionStorage에서 좌표 로드하여 extraData에 자동 입력
+4. 좌표가 있으면 추가 정보 패널 자동 열림
 
 **검증 방법**:
-- [ ] 관측소 선택 시 좌표 자동 입력 확인
-- [ ] 좌표 없는 관측소 선택 시 빈 값 유지 확인
-- [ ] 수동으로 좌표 수정 가능 확인
+- [x] 관측소 선택 시 좌표 자동 입력 확인
+- [x] 좌표 없는 관측소 선택 시 빈 값 유지 확인
+- [x] 수동으로 좌표 수정 가능 확인
 
 ---
 
@@ -811,7 +799,7 @@ A: `requests` 라이브러리로 GET 요청. WAMIS GitHub 튜토리얼 참고.
 | 단계 | 상태 | 완료일 |
 |------|------|--------|
 | Phase 1: 수동 입력 UI | ✅ 완료 | 2025-12-31 |
-| Phase 2: 위도/경도 자동 입력 | ⬜ 대기 | - |
+| Phase 2: 위도/경도 자동 입력 | ✅ 완료 | 2025-12-31 |
 | Phase 3: 수질 데이터 참조 | ⬜ 대기 | - |
 | Phase 4: CSV Import 확장 | ⬜ 대기 | - |
 | Phase 5: Excel Export 확장 | ⬜ 대기 | - |
