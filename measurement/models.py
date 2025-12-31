@@ -269,6 +269,17 @@ class MeasurementSession(models.Model):
     uncertainty = models.FloatField(null=True, blank=True, verbose_name='불확실도(%)')
     quality_grade = models.CharField(max_length=5, blank=True, verbose_name='등급')  # E, G, F, P
 
+    # 위치 정보
+    latitude = models.FloatField(null=True, blank=True, verbose_name='위도')
+    longitude = models.FloatField(null=True, blank=True, verbose_name='경도')
+
+    # 수질 데이터
+    ph = models.FloatField(null=True, blank=True, verbose_name='PH')
+    orp = models.FloatField(null=True, blank=True, verbose_name='ORP')
+    water_temp = models.FloatField(null=True, blank=True, verbose_name='수온(℃)')
+    ec = models.FloatField(null=True, blank=True, verbose_name='EC(μS/cm)')
+    tds = models.FloatField(null=True, blank=True, verbose_name='TDS(mg/L)')
+
     # 메타
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')

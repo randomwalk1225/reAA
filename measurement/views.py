@@ -2594,6 +2594,130 @@ def api_analysis_export(request):
                                 ws.add_image(img, cell_ref)
                                 chart_count += 1
 
+                # ========== 통계 요약 테이블 추가 ==========
+                import statistics
+
+                # 위치별 유량 데이터 수집
+                loc_discharge_data = defaultdict(list)
+                all_ph = []
+                all_orp = []
+                all_water_temp = []
+                all_ec = []
+                all_tds = []
+                all_discharge = []
+
+                for s in station_sessions:
+                    # 위치 추출
+                    loc_name = s.setup_data.get('location', '') if s.setup_data else ''
+                    if not loc_name:
+                        name_parts = (s.station_name or '').split()
+                        if len(name_parts) > 1:
+                            loc_name = name_parts[-1]
+
+                    if '상류' in loc_name:
+                        loc_key = '보상류'
+                    elif '하류' in loc_name:
+                        loc_key = '보하류'
+                    else:
+                        loc_key = loc_name or '기타'
+
+                    if s.estimated_discharge:
+                        loc_discharge_data[loc_key].append(s.estimated_discharge)
+                        all_discharge.append(s.estimated_discharge)
+
+                    # 수질 데이터 수집
+                    if s.ph:
+                        all_ph.append(s.ph)
+                    if s.orp:
+                        all_orp.append(s.orp)
+                    if s.water_temp:
+                        all_water_temp.append(s.water_temp)
+                    if s.ec:
+                        all_ec.append(s.ec)
+                    if s.tds:
+                        all_tds.append(s.tds)
+
+                # 통계 계산 함수
+                def calc_stats(data):
+                    if not data or len(data) < 1:
+                        return {'min': None, 'q1': None, 'median': None, 'mean': None, 'q3': None, 'max': None}
+                    sorted_data = sorted(data)
+                    n = len(sorted_data)
+                    return {
+                        'min': min(data),
+                        'q1': sorted_data[n // 4] if n >= 4 else sorted_data[0],
+                        'median': statistics.median(data),
+                        'mean': statistics.mean(data),
+                        'q3': sorted_data[(3 * n) // 4] if n >= 4 else sorted_data[-1],
+                        'max': max(data)
+                    }
+
+                # 통계 테이블 시작 위치 (차트 아래)
+                stats_start_row = chart_start_row + ((chart_count + 1) // 2) * 15 + 5
+
+                # 1. 위치별 유량 통계 테이블
+                ws.cell(row=stats_start_row, column=1, value='구분').fill = header_fill
+                ws.cell(row=stats_start_row, column=1).border = thin_border
+                ws.merge_cells(start_row=stats_start_row, start_column=2, end_row=stats_start_row, end_column=4)
+                ws.cell(row=stats_start_row, column=2, value='단위: m³/s').alignment = center_align
+                ws.cell(row=stats_start_row, column=2).border = thin_border
+                ws.merge_cells(start_row=stats_start_row, start_column=5, end_row=stats_start_row, end_column=7)
+                ws.cell(row=stats_start_row, column=5, value='단위: m³/day').alignment = center_align
+                ws.cell(row=stats_start_row, column=5).border = thin_border
+
+                stats_start_row += 1
+                for i, label in enumerate(['', '최소', '최대', '평균', '최소', '최대', '평균']):
+                    ws.cell(row=stats_start_row, column=i+1, value=label).border = thin_border
+                    ws.cell(row=stats_start_row, column=i+1).fill = header_fill
+                    ws.cell(row=stats_start_row, column=i+1).alignment = center_align
+
+                stats_start_row += 1
+                for loc_key in ['보상류', '보하류']:
+                    data = loc_discharge_data.get(loc_key, [])
+                    if data:
+                        min_v, max_v, mean_v = min(data), max(data), statistics.mean(data)
+                        ws.cell(row=stats_start_row, column=1, value=loc_key).border = thin_border
+                        ws.cell(row=stats_start_row, column=2, value=round(min_v, 3)).border = thin_border
+                        ws.cell(row=stats_start_row, column=3, value=round(max_v, 3)).border = thin_border
+                        ws.cell(row=stats_start_row, column=4, value=round(mean_v, 3)).border = thin_border
+                        # m³/day 변환 (× 86400)
+                        ws.cell(row=stats_start_row, column=5, value=round(min_v * 86400, 0)).border = thin_border
+                        ws.cell(row=stats_start_row, column=6, value=round(max_v * 86400, 0)).border = thin_border
+                        ws.cell(row=stats_start_row, column=7, value=round(mean_v * 86400, 0)).border = thin_border
+                        stats_start_row += 1
+
+                # 2. 전체 통계 테이블 (Min, 1st Qu, Median, Mean, 3rd Qu, Max)
+                stats_start_row += 2
+                stat_headers = ['항목', 'Min', '1st Qu.', 'Median', 'Mean', '3rd Qu.', 'Max.']
+                for i, h in enumerate(stat_headers):
+                    ws.cell(row=stats_start_row, column=i+1, value=h).fill = header_fill
+                    ws.cell(row=stats_start_row, column=i+1).border = thin_border
+                    ws.cell(row=stats_start_row, column=i+1).alignment = center_align
+
+                stat_items = [
+                    ('유량 (m³/s)', all_discharge),
+                    ('PH', all_ph),
+                    ('ORP', all_orp),
+                    ('수온 (℃)', all_water_temp),
+                    ('EC (μS/cm)', all_ec),
+                    ('TDS (mg/L)', all_tds),
+                ]
+
+                for item_name, item_data in stat_items:
+                    if item_data:
+                        stats_start_row += 1
+                        stats = calc_stats(item_data)
+                        ws.cell(row=stats_start_row, column=1, value=item_name).border = thin_border
+                        if item_name == '유량 (m³/s)':
+                            ws.cell(row=stats_start_row, column=1).fill = yellow_fill
+                        for j, key in enumerate(['min', 'q1', 'median', 'mean', 'q3', 'max']):
+                            val = stats[key]
+                            if val is not None:
+                                ws.cell(row=stats_start_row, column=j+2, value=round(val, 4)).border = thin_border
+                            ws.cell(row=stats_start_row, column=j+2).alignment = center_align
+                            if item_name == '유량 (m³/s)':
+                                ws.cell(row=stats_start_row, column=j+2).fill = yellow_fill
+
             response = HttpResponse(
                 content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
