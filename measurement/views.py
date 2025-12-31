@@ -2437,13 +2437,20 @@ def api_analysis_export(request):
             wb = Workbook()
             wb.remove(wb.active)
 
-            # 지역별 그룹화
+            # 하천명별 그룹화 (station_name에서 하천명만 추출)
             stations_data = defaultdict(list)
             for session in sessions:
                 if session.wetted_perimeter is None and session.rows_data:
                     session.calculate_analysis_results()
                     session.save()
-                stations_data[session.station_name or '미지정'].append(session)
+                # 하천명 추출: "대종천 보상류" -> "대종천"
+                full_name = session.station_name or '미지정'
+                name_parts = full_name.split()
+                if len(name_parts) > 1 and any(loc in name_parts[-1] for loc in ['상류', '하류', '보']):
+                    river_name = ' '.join(name_parts[:-1])  # 마지막 부분(위치) 제외
+                else:
+                    river_name = full_name
+                stations_data[river_name or '미지정'].append(session)
 
             # 스타일
             header_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
@@ -2484,7 +2491,16 @@ def api_analysis_export(request):
                     else:
                         date_str = '미지정'
 
-                    loc = s.setup_data.get('location_desc', '') if s.setup_data else ''
+                    # 위치 정보 추출: setup_data > station_name에서 파싱
+                    loc = s.setup_data.get('location', '') if s.setup_data else ''
+                    if not loc:
+                        loc = s.setup_data.get('location_desc', '') if s.setup_data else ''
+                    if not loc:
+                        # station_name에서 위치 추출 (예: "대종천 보상류" -> "보상류")
+                        name_parts = (s.station_name or '').split()
+                        if len(name_parts) > 1:
+                            loc = name_parts[-1]  # 마지막 부분이 위치
+
                     if '상류' in loc:
                         loc_key = '보 상류'
                     elif '하류' in loc:
