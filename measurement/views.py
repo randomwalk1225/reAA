@@ -2349,7 +2349,7 @@ def api_analysis_export(request):
                 print(f"Invalid data for session {session.id}")
                 return None
 
-            fig, ax1 = plt.subplots(figsize=(5, 3), dpi=100)
+            fig, ax1 = plt.subplots(figsize=(15, 4.5), dpi=100)  # 가로 3배, 세로 1.5배
 
             # 수심 (단면)
             ax1.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='Depth')
@@ -2382,10 +2382,10 @@ def api_analysis_export(request):
                 title += f" - {date_str}"
             ax1.set_title(title, fontsize=10, fontweight='bold')
 
-            # 범례
+            # 범례 (오른쪽 아래)
             lines1, labels1 = ax1.get_legend_handles_labels()
             lines2, labels2 = ax2.get_legend_handles_labels()
-            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='lower right', fontsize=10)
 
             plt.tight_layout()
 
@@ -2586,10 +2586,10 @@ def api_analysis_export(request):
                             img_buffer = generate_chart_image(session)
                             if img_buffer:
                                 img = XLImage(img_buffer)
-                                img.width = 400
-                                img.height = 240
-                                row_offset = (chart_count // 2) * 15
-                                col_offset = (chart_count % 2) * 8
+                                img.width = 1200   # 3배 확대
+                                img.height = 360   # 1.5배 확대
+                                row_offset = chart_count * 22  # 차트 세로로 배치
+                                col_offset = 0
                                 cell_ref = f"{get_column_letter(1 + col_offset)}{chart_start_row + row_offset}"
                                 ws.add_image(img, cell_ref)
                                 chart_count += 1
