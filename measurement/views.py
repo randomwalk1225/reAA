@@ -2892,6 +2892,21 @@ def api_batch_import_csv(request):
                     errors.append({'filename': filename, 'error': '유효한 데이터가 없습니다.'})
                     continue
 
+                # 중복 체크: 같은 관측소 + 날짜가 이미 존재하면 skip
+                if station_name and measurement_date:
+                    existing = MeasurementSession.objects.filter(
+                        station_name=station_name,
+                        measurement_date=measurement_date
+                    ).first()
+                    if existing:
+                        errors.append({
+                            'filename': filename,
+                            'error': f'중복 데이터 (이미 존재: {station_name}, {measurement_date})',
+                            'duplicate': True,
+                            'existing_session_id': existing.pk
+                        })
+                        continue
+
                 # 유량 계산
                 result_data = calculate_discharge(rows, calibration)
 
