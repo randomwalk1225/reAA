@@ -3,7 +3,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods, require_GET, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import json
 import math
 
@@ -2482,14 +2482,16 @@ def api_analysis_export(request):
 
                 # 날짜별, 위치별 그룹화
                 date_location_data = defaultdict(dict)
-                dates_set = set()
+                date_objects = {}  # 날짜 문자열 -> 실제 날짜 객체 매핑
                 locations_set = set()
 
                 for s in station_sessions:
                     if s.measurement_date:
                         date_str = f"{s.measurement_date.month}/{s.measurement_date.day}/{s.measurement_date.year}"
+                        date_objects[date_str] = s.measurement_date
                     else:
                         date_str = '미지정'
+                        date_objects[date_str] = None
 
                     # 위치 정보 추출: setup_data > station_name에서 파싱
                     loc = s.setup_data.get('location', '') if s.setup_data else ''
@@ -2508,11 +2510,11 @@ def api_analysis_export(request):
                     else:
                         loc_key = loc or f'측정{s.session_number}'
 
-                    dates_set.add(date_str)
                     locations_set.add(loc_key)
                     date_location_data[date_str][loc_key] = s
 
-                dates = sorted(dates_set)
+                # 날짜순 정렬 (실제 날짜 객체로 정렬)
+                dates = sorted(date_objects.keys(), key=lambda d: date_objects[d] or date.min)
                 locations = sorted(locations_set) or ['측정1']
 
                 # 헤더
