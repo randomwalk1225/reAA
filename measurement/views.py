@@ -2351,26 +2351,25 @@ def api_analysis_export(request):
 
             fig, ax1 = plt.subplots(figsize=(15, 4.5), dpi=100)  # 가로 3배, 세로 1.5배
 
-            # 수심 (단면)
-            ax1.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='Depth')
-            ax1.plot(distances, depths, color='#1e3a5f', linewidth=2)
+            # 유속 (왼쪽 Y축)
+            ax1.plot(distances, velocities, color='#ef4444', linewidth=2, marker='o', markersize=4, label='Velocity')
             ax1.set_xlabel('Distance (m)', fontsize=9)
-            ax1.set_ylabel('Depth (m)', color='#1e3a5f', fontsize=9)
-            ax1.tick_params(axis='y', labelcolor='#1e3a5f')
-            min_depth = min(depths) if depths else -1
-            ax1.set_ylim(min_depth * 1.2 if min_depth < 0 else -1, 0.1)
-            ax1.axhline(y=0, color='#3b82f6', linewidth=1.5)
+            ax1.set_ylabel('Velocity (m/s)', color='#ef4444', fontsize=9)
+            ax1.tick_params(axis='y', labelcolor='#ef4444')
+            max_vel = max(velocities) if velocities else 1
+            ax1.set_ylim(0, max_vel * 1.3 if max_vel > 0 else 1)
             ax1.grid(True, linestyle='--', alpha=0.5, color='gray')
             ax1.set_axisbelow(True)
 
-            # 유속
+            # 수심 (오른쪽 Y축)
             ax2 = ax1.twinx()
-            ax2.plot(distances, velocities, color='#ef4444', linewidth=2, marker='o', markersize=4, label='Velocity')
-            ax2.set_ylabel('Velocity (m/s)', color='#ef4444', fontsize=9)
-            ax2.tick_params(axis='y', labelcolor='#ef4444')
-            max_vel = max(velocities) if velocities else 1
-            ax2.set_ylim(0, max_vel * 1.3 if max_vel > 0 else 1)
-            ax2.grid(True, linestyle=':', alpha=0.3, color='#ef4444', axis='y')
+            ax2.fill_between(distances, depths, 0, alpha=0.3, color='#1e3a5f', label='Depth')
+            ax2.plot(distances, depths, color='#1e3a5f', linewidth=2)
+            ax2.set_ylabel('Depth (m)', color='#1e3a5f', fontsize=9)
+            ax2.tick_params(axis='y', labelcolor='#1e3a5f')
+            min_depth = min(depths) if depths else -1
+            ax2.set_ylim(min_depth * 1.2 if min_depth < 0 else -1, 0.1)
+            ax2.axhline(y=0, color='#3b82f6', linewidth=1.5)
 
             # 제목 (관측소명 + 날짜)
             loc_desc = session.setup_data.get('location_desc', '') if session.setup_data else ''
