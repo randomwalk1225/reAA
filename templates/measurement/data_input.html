@@ -938,6 +938,34 @@ function dataInputGrid() {
         },
 
         init() {
+            // sessionStorage에서 측정 설정 로드 (new.html에서 전달)
+            const setupDataStr = sessionStorage.getItem('measurementSetup');
+            if (setupDataStr) {
+                try {
+                    const setupData = JSON.parse(setupDataStr);
+                    // 위치 정보 자동 입력
+                    if (setupData.latitude) {
+                        this.extraData.latitude = setupData.latitude;
+                    }
+                    if (setupData.longitude) {
+                        this.extraData.longitude = setupData.longitude;
+                    }
+                    // 수질 정보도 있으면 입력
+                    if (setupData.ph) this.extraData.ph = setupData.ph;
+                    if (setupData.orp) this.extraData.orp = setupData.orp;
+                    if (setupData.water_temp) this.extraData.water_temp = setupData.water_temp;
+                    if (setupData.conductivity) this.extraData.ec = setupData.conductivity;
+                    if (setupData.tds) this.extraData.tds = setupData.tds;
+
+                    // 좌표가 있으면 자동으로 추가 정보 패널 열기
+                    if (setupData.latitude && setupData.longitude) {
+                        this.showExtraInfo = true;
+                    }
+                } catch (e) {
+                    console.warn('Setup data parse error:', e);
+                }
+            }
+
             // 초기 유속 계산 (chartReady=false 상태에서 차트 업데이트 안함)
             this.rows.forEach((row, index) => this.calculateVelocity(index));
             this.updateEstimatedDischarge();
