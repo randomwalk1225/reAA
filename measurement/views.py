@@ -2576,8 +2576,43 @@ def api_analysis_export(request):
                 for i in range(2, unit_col + 1):
                     ws.column_dimensions[get_column_letter(i)].width = 12
 
+                # ========== 수질/위치 상세 테이블 추가 ==========
+                wq_start_row = len(row_items) + 5
+                wq_headers = ['공번', '위도', '경도', '유량 (m³/d)', 'PH', 'ORP', '수온', 'EC', 'TDS']
+
+                # 헤더
+                for i, h in enumerate(wq_headers):
+                    ws.cell(row=wq_start_row, column=i+1, value=h).fill = header_fill
+                    ws.cell(row=wq_start_row, column=i+1).border = thin_border
+                    ws.cell(row=wq_start_row, column=i+1).alignment = center_align
+
+                # 데이터 행
+                wq_row = wq_start_row + 1
+                for idx, s in enumerate(station_sessions, start=1):
+                    # 공번 생성
+                    code = f"{stn_name[:4]}-{idx}" if len(stn_name) >= 4 else f"ST-{idx}"
+
+                    ws.cell(row=wq_row, column=1, value=code).border = thin_border
+                    ws.cell(row=wq_row, column=2, value=s.latitude if s.latitude else '').border = thin_border
+                    ws.cell(row=wq_row, column=3, value=s.longitude if s.longitude else '').border = thin_border
+
+                    # 유량 m³/d 변환
+                    discharge_day = round(s.estimated_discharge * 86400, 2) if s.estimated_discharge else ''
+                    ws.cell(row=wq_row, column=4, value=discharge_day).border = thin_border
+
+                    ws.cell(row=wq_row, column=5, value=s.ph if s.ph else '').border = thin_border
+                    ws.cell(row=wq_row, column=6, value=s.orp if s.orp else '').border = thin_border
+                    ws.cell(row=wq_row, column=7, value=s.water_temp if s.water_temp else '').border = thin_border
+                    ws.cell(row=wq_row, column=8, value=s.ec if s.ec else '').border = thin_border
+                    ws.cell(row=wq_row, column=9, value=s.tds if s.tds else '').border = thin_border
+
+                    for col in range(1, 10):
+                        ws.cell(row=wq_row, column=col).alignment = center_align
+
+                    wq_row += 1
+
                 # 차트 이미지 삽입
-                chart_start_row = len(row_items) + 5
+                chart_start_row = wq_row + 3
                 chart_count = 0
 
                 for date in dates:
@@ -2654,7 +2689,7 @@ def api_analysis_export(request):
                     }
 
                 # 통계 테이블 시작 위치 (차트 아래)
-                stats_start_row = chart_start_row + ((chart_count + 1) // 2) * 15 + 5
+                stats_start_row = chart_start_row + chart_count * 22 + 5
 
                 # 1. 위치별 유량 통계 테이블
                 ws.cell(row=stats_start_row, column=1, value='구분').fill = header_fill
