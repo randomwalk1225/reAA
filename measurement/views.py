@@ -2372,11 +2372,14 @@ def api_analysis_export(request):
             ax2.set_ylim(0, max_vel * 1.3 if max_vel > 0 else 1)
             ax2.grid(True, linestyle=':', alpha=0.3, color='#ef4444', axis='y')
 
-            # 제목
+            # 제목 (관측소명 + 날짜)
             loc_desc = session.setup_data.get('location_desc', '') if session.setup_data else ''
+            date_str = session.measurement_date.strftime('%Y-%m-%d') if session.measurement_date else ''
             title = f"{session.station_name or 'Station'}"
             if loc_desc:
                 title += f" ({loc_desc})"
+            if date_str:
+                title += f" - {date_str}"
             ax1.set_title(title, fontsize=10, fontweight='bold')
 
             # 범례
