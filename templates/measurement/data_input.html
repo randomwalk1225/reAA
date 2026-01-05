@@ -324,25 +324,41 @@
             <div class="flex-1 bg-white rounded-lg shadow-sm border overflow-hidden min-w-0">
                 <div class="overflow-x-auto">
                     <!-- ====== 회전수 입력 모드 테이블 ====== -->
-                    <table x-show="velocityInputMode === 'revolution'" class="data-grid w-full border-collapse">
+                    <table x-show="velocityInputMode === 'revolution'" class="data-grid w-full border-collapse" style="table-layout:fixed;">
+                        <colgroup>
+                            <col style="width:35px;">
+                            <col style="width:70px;">
+                            <col style="width:70px;">
+                            <col style="width:60px;">
+                            <col style="width:60px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:55px;">
+                            <col style="width:70px;">
+                        </colgroup>
                         <thead class="bg-gray-100 sticky top-0">
                             <tr>
-                                <th class="border-b border-r px-2 py-2 text-center col-num">#</th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data">거리<br><span class="font-normal text-gray-500">(m)</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data">수심<br><span class="font-normal text-gray-500">(m)</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center col-method">측정</th>
-                                <th class="border-b border-r px-2 py-2 text-center" style="width:65px;">유속계</th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data cursor-pointer hover:bg-gray-200" @click="toggleAngleMode()">
-                                    <span x-show="angleInputMode === 'angle'">각도(°)</span>
-                                    <span x-show="angleInputMode === 'index'">index</span>
+                                <th class="border-b border-r px-1 py-2 text-center">#</th>
+                                <th class="border-b border-r px-1 py-2 text-center">거리(m)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">수심(m)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">측정</th>
+                                <th class="border-b border-r px-1 py-2 text-center">유속계</th>
+                                <th class="border-b border-r px-1 py-2 text-center cursor-pointer hover:bg-yellow-100" @click="toggleAngleMode()">
+                                    <span x-show="angleInputMode === 'angle'" class="text-yellow-700">각도</span>
+                                    <span x-show="angleInputMode === 'index'" class="text-yellow-700">index</span>
+                                    <span class="text-xs text-yellow-600 block">클릭전환</span>
                                 </th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N(0.2)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(0.2)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N(0.6)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(0.6)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">N(0.8)</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">T(0.8)</th>
-                                <th class="border-b px-2 py-2 text-center col-velocity">유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">N.2</th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">T.2</th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">N.6</th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">T.6</th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">N.8</th>
+                                <th class="border-b border-r px-1 py-2 text-center text-xs">T.8</th>
+                                <th class="border-b px-1 py-2 text-center">유속</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -413,21 +429,33 @@
                     </table>
 
                     <!-- ====== 유속 직접 입력 모드 테이블 ====== -->
-                    <table x-show="velocityInputMode === 'velocity'" class="data-grid w-full border-collapse">
+                    <table x-show="velocityInputMode === 'velocity'" class="data-grid w-full border-collapse" style="table-layout:fixed;">
+                        <colgroup>
+                            <col style="width:35px;">
+                            <col style="width:80px;">
+                            <col style="width:80px;">
+                            <col style="width:70px;">
+                            <col style="width:70px;">
+                            <col style="width:90px;">
+                            <col style="width:90px;">
+                            <col style="width:90px;">
+                            <col style="width:90px;">
+                        </colgroup>
                         <thead class="bg-gray-100 sticky top-0">
                             <tr>
-                                <th class="border-b border-r px-2 py-2 text-center col-num">#</th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data">거리<br><span class="font-normal text-gray-500">(m)</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data">수심<br><span class="font-normal text-gray-500">(m)</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center col-method">측정</th>
-                                <th class="border-b border-r px-2 py-2 text-center col-data cursor-pointer hover:bg-gray-200" @click="toggleAngleMode()">
-                                    <span x-show="angleInputMode === 'angle'">각도(°)</span>
-                                    <span x-show="angleInputMode === 'index'">index</span>
+                                <th class="border-b border-r px-1 py-2 text-center">#</th>
+                                <th class="border-b border-r px-1 py-2 text-center">거리(m)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">수심(m)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">측정</th>
+                                <th class="border-b border-r px-1 py-2 text-center cursor-pointer hover:bg-yellow-100" @click="toggleAngleMode()">
+                                    <span x-show="angleInputMode === 'angle'" class="text-yellow-700">각도(°)</span>
+                                    <span x-show="angleInputMode === 'index'" class="text-yellow-700">index</span>
+                                    <span class="text-xs text-yellow-600 block">클릭전환</span>
                                 </th>
-                                <th class="border-b border-r px-2 py-2 text-center" style="width:80px;">V(0.2)<br><span class="font-normal text-gray-500">m/s</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center" style="width:80px;">V(0.6)<br><span class="font-normal text-gray-500">m/s</span></th>
-                                <th class="border-b border-r px-2 py-2 text-center" style="width:80px;">V(0.8)<br><span class="font-normal text-gray-500">m/s</span></th>
-                                <th class="border-b px-2 py-2 text-center col-velocity">평균유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
+                                <th class="border-b border-r px-1 py-2 text-center">V(0.2)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">V(0.6)</th>
+                                <th class="border-b border-r px-1 py-2 text-center">V(0.8)</th>
+                                <th class="border-b px-1 py-2 text-center">평균유속</th>
                             </tr>
                         </thead>
                         <tbody>
