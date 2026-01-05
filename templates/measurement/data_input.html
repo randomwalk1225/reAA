@@ -153,6 +153,18 @@
 
         <!-- Toolbar -->
         <div class="bg-white rounded-lg shadow-sm border p-2 mb-4 flex flex-wrap items-center gap-2">
+            <!-- 회전수/유속 전환 버튼 -->
+            <button type="button" @click="toggleVelocityInputMode()"
+                    class="inline-flex items-center px-3 py-1.5 text-sm rounded-lg transition-colors"
+                    :class="velocityInputMode === 'revolution' ? 'bg-blue-100 hover:bg-blue-200 text-blue-700' : 'bg-green-100 hover:bg-green-200 text-green-700'">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+                <span x-text="velocityInputMode === 'revolution' ? '회전수 입력' : '유속 직접입력'"></span>
+            </button>
+
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+
             <button type="button" @click="pasteFromClipboard"
                     class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -319,19 +331,27 @@
                                 <th class="border-b border-r px-2 py-2 text-center col-data">수심<br><span class="font-normal text-gray-500">(m)</span></th>
                                 <th class="border-b border-r px-2 py-2 text-center col-data">수위<br><span class="font-normal text-gray-500">(m)</span></th>
                                 <th class="border-b border-r px-2 py-2 text-center col-method">측정</th>
-                                <th class="border-b border-r px-2 py-2 text-center" style="width:75px;">유속계</th>
+                                <th class="border-b border-r px-2 py-2 text-center" style="width:75px;" x-show="velocityInputMode === 'revolution'">유속계</th>
                                 <th class="border-b border-r px-2 py-2 text-center col-data cursor-pointer hover:bg-gray-200" @click="toggleAngleMode()">
                                     <span x-show="angleInputMode === 'angle'">각도<br><span class="font-normal text-gray-500">(°)</span></span>
                                     <span x-show="angleInputMode === 'index'">index<br><span class="font-normal text-gray-500">(보정)</span></span>
                                     <span class="text-xs text-blue-500 block">클릭전환</span>
                                 </th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">회전수</th>
-                                <th class="border-b border-r px-1 py-2 text-center col-measure">측정시간</th>
-                                <th class="border-b px-2 py-2 text-center col-velocity">유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
+                                <!-- 회전수 모드일 때 -->
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-1 py-2 text-center col-measure cursor-pointer hover:bg-blue-100" @click="toggleVelocityInputMode()" colspan="6">
+                                        <span class="text-blue-600">회전수/시간</span><br>
+                                        <span class="text-xs text-blue-500">클릭→유속직접입력</span>
+                                    </th>
+                                </template>
+                                <!-- 유속 직접 입력 모드일 때 -->
+                                <template x-if="velocityInputMode === 'velocity'">
+                                    <th class="border-b border-r px-1 py-2 text-center cursor-pointer hover:bg-green-100" @click="toggleVelocityInputMode()" colspan="3" style="width:180px;">
+                                        <span class="text-green-600">유속 직접입력</span><br>
+                                        <span class="text-xs text-green-500">클릭→회전수입력</span>
+                                    </th>
+                                </template>
+                                <th class="border-b px-2 py-2 text-center col-velocity">평균유속<br><span class="font-normal text-gray-500">(m/s)</span></th>
                             </tr>
                             <tr class="bg-gray-50 text-xs text-gray-500">
                                 <th class="border-b border-r"></th>
@@ -339,14 +359,37 @@
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
                                 <th class="border-b border-r"></th>
-                                <th class="border-b border-r"></th>
+                                <th class="border-b border-r" x-show="velocityInputMode === 'revolution'"></th>
                                 <th class="border-b border-r" x-text="angleInputMode === 'angle' ? 'cos→index' : '0.6~1.0'"></th>
-                                <th class="border-b border-r px-2 py-1">V0.2</th>
-                                <th class="border-b border-r px-2 py-1">V0.2</th>
-                                <th class="border-b border-r px-2 py-1">V0.6</th>
-                                <th class="border-b border-r px-2 py-1">V0.6</th>
-                                <th class="border-b border-r px-2 py-1">V0.8</th>
-                                <th class="border-b border-r px-2 py-1">V0.8</th>
+                                <!-- 회전수 모드 서브헤더 -->
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">N(0.2)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">T(0.2)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">N(0.6)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">T(0.6)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">N(0.8)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <th class="border-b border-r px-2 py-1">T(0.8)</th>
+                                </template>
+                                <!-- 유속 직접 입력 모드 서브헤더 -->
+                                <template x-if="velocityInputMode === 'velocity'">
+                                    <th class="border-b border-r px-2 py-1">V(0.2)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'velocity'">
+                                    <th class="border-b border-r px-2 py-1">V(0.6)</th>
+                                </template>
+                                <template x-if="velocityInputMode === 'velocity'">
+                                    <th class="border-b border-r px-2 py-1">V(0.8)</th>
+                                </template>
                                 <th class="border-b"></th>
                             </tr>
                         </thead>
@@ -379,8 +422,8 @@
                                             <option value="REW">REW</option>
                                         </select>
                                     </td>
-                                    <!-- 유속계 선택 -->
-                                    <td class="border-b border-r">
+                                    <!-- 유속계 선택 (회전수 모드에서만 표시) -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'">
                                         <select x-model="row.meter_id" @change="calculateVelocity(index)"
                                                 class="w-full px-1 py-2 border-none bg-transparent text-center text-xs">
                                             <template x-for="meter in meters" :key="meter.id">
@@ -405,37 +448,57 @@
                                                placeholder="1.0" min="0.6" max="1.0"
                                                class="w-full text-center">
                                     </td>
-                                    <!-- 0.2D - 항상 입력 가능 -->
-                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <!-- ====== 회전수 입력 모드 ====== -->
+                                    <!-- 0.2D 회전수/시간 -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.n_02d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_02d')"
                                                placeholder="-">
                                     </td>
-                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.t_02d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_02d')"
                                                placeholder="-">
                                     </td>
-                                    <!-- 0.6D - 항상 입력 가능 -->
-                                    <td class="border-b border-r" :class="!['1','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <!-- 0.6D 회전수/시간 -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['1','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.n_06d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_06d')"
                                                placeholder="-">
                                     </td>
-                                    <td class="border-b border-r" :class="!['1','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['1','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.t_06d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_06d')"
                                                placeholder="-">
                                     </td>
-                                    <!-- 0.8D - 항상 입력 가능 -->
-                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <!-- 0.8D 회전수/시간 -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.n_08d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'n_08d')"
                                                placeholder="-">
                                     </td>
-                                    <td class="border-b border-r" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'revolution'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
                                         <input type="number" x-model="row.t_08d"
                                                @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 't_08d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- ====== 유속 직접 입력 모드 ====== -->
+                                    <!-- V_0.2D -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'velocity'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                        <input type="number" step="0.001" x-model="row.v_02d"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'v_02d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- V_0.6D -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'velocity'" :class="!['1','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                        <input type="number" step="0.001" x-model="row.v_06d"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'v_06d')"
+                                               placeholder="-">
+                                    </td>
+                                    <!-- V_0.8D -->
+                                    <td class="border-b border-r" x-show="velocityInputMode === 'velocity'" :class="!['2','3'].includes(row.method) ? 'bg-gray-50' : ''">
+                                        <input type="number" step="0.001" x-model="row.v_08d"
+                                               @input="calculateVelocity(index)" @keydown="handleKeydown($event, index, 'v_08d')"
                                                placeholder="-">
                                     </td>
                                     <!-- Average Velocity -->
@@ -510,11 +573,20 @@
 
         <!-- Toolbar (Mobile) -->
         <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+            <!-- 회전수/유속 전환 버튼 -->
+            <button @click="toggleVelocityInputMode()"
+                    class="inline-flex items-center px-3 py-2 text-sm rounded-lg whitespace-nowrap"
+                    :class="velocityInputMode === 'revolution' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+                <span x-text="velocityInputMode === 'revolution' ? '회전수' : '유속직접'"></span>
+            </button>
             <label class="inline-flex items-center px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg cursor-pointer whitespace-nowrap">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                 </svg>
-                CSV 가져오기
+                CSV
                 <input type="file" accept=".csv" @change="importCSV($event)" class="hidden">
             </label>
             <button @click="exportCSV()"
@@ -522,7 +594,7 @@
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                CSV 내보내기
+                내보내기
             </button>
             <button @click="showChart = !showChart"
                     class="inline-flex items-center px-3 py-2 text-sm rounded-lg whitespace-nowrap"
@@ -741,61 +813,113 @@
                                 </div>
                             </div>
 
-                            <!-- Depth Measurements - 모두 입력 가능 -->
+                            <!-- Depth Measurements - 회전수 모드와 유속 직접 입력 모드 -->
                             <div class="space-y-2">
-                                <!-- 0.2D -->
-                                <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>V0.2 (표층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
-                                    <div class="inputs">
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
-                                            <input type="number" x-model="row.n_02d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
+                                <!-- ====== 회전수 입력 모드 ====== -->
+                                <template x-if="velocityInputMode === 'revolution'">
+                                    <div class="space-y-2">
+                                        <!-- 0.2D -->
+                                        <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.2 (표층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">회전수:</span>
+                                                    <input type="number" x-model="row.n_02d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                </div>
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">측정시간:</span>
+                                                    <input type="number" x-model="row.t_02d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                    <span class="text-xs text-gray-400">초</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
-                                            <input type="number" x-model="row.t_02d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
-                                            <span class="text-xs text-gray-400">초</span>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <!-- 0.6D -->
-                                <div class="depth-item" :class="!['1','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>V0.6 (중층) <span x-show="!['1','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
-                                    <div class="inputs">
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
-                                            <input type="number" x-model="row.n_06d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
+                                        <!-- 0.6D -->
+                                        <div class="depth-item" :class="!['1','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.6 (중층) <span x-show="!['1','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">회전수:</span>
+                                                    <input type="number" x-model="row.n_06d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                </div>
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">측정시간:</span>
+                                                    <input type="number" x-model="row.t_06d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                    <span class="text-xs text-gray-400">초</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
-                                            <input type="number" x-model="row.t_06d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
-                                            <span class="text-xs text-gray-400">초</span>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <!-- 0.8D -->
-                                <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
-                                    <label>V0.8 (저층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
-                                    <div class="inputs">
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">회전수:</span>
-                                            <input type="number" x-model="row.n_08d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
-                                        </div>
-                                        <div class="input-group">
-                                            <span class="text-sm text-gray-600 font-medium">측정시간:</span>
-                                            <input type="number" x-model="row.t_08d"
-                                                   @input="calculateVelocity(index)" placeholder="-">
-                                            <span class="text-xs text-gray-400">초</span>
+                                        <!-- 0.8D -->
+                                        <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.8 (저층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">회전수:</span>
+                                                    <input type="number" x-model="row.n_08d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                </div>
+                                                <div class="input-group">
+                                                    <span class="text-sm text-gray-600 font-medium">측정시간:</span>
+                                                    <input type="number" x-model="row.t_08d"
+                                                           @input="calculateVelocity(index)" placeholder="-">
+                                                    <span class="text-xs text-gray-400">초</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </template>
+
+                                <!-- ====== 유속 직접 입력 모드 ====== -->
+                                <template x-if="velocityInputMode === 'velocity'">
+                                    <div class="space-y-2">
+                                        <!-- V_0.2D -->
+                                        <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.2 (표층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-green-600 font-medium">유속:</span>
+                                                    <input type="number" step="0.001" x-model="row.v_02d"
+                                                           @input="calculateVelocity(index)" placeholder="0.000"
+                                                           class="border-green-300 focus:border-green-500">
+                                                    <span class="text-xs text-gray-400">m/s</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- V_0.6D -->
+                                        <div class="depth-item" :class="!['1','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.6 (중층) <span x-show="!['1','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-green-600 font-medium">유속:</span>
+                                                    <input type="number" step="0.001" x-model="row.v_06d"
+                                                           @input="calculateVelocity(index)" placeholder="0.000"
+                                                           class="border-green-300 focus:border-green-500">
+                                                    <span class="text-xs text-gray-400">m/s</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- V_0.8D -->
+                                        <div class="depth-item" :class="!['2','3'].includes(row.method) ? 'opacity-60' : ''">
+                                            <label>V0.8 (저층) <span x-show="!['2','3'].includes(row.method)" class="text-xs text-gray-400">(미사용)</span></label>
+                                            <div class="inputs">
+                                                <div class="input-group">
+                                                    <span class="text-sm text-green-600 font-medium">유속:</span>
+                                                    <input type="number" step="0.001" x-model="row.v_08d"
+                                                           @input="calculateVelocity(index)" placeholder="0.000"
+                                                           class="border-green-300 focus:border-green-500">
+                                                    <span class="text-xs text-gray-400">m/s</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
 
                             <!-- Calculated Velocity -->
@@ -905,16 +1029,26 @@ function dataInputGrid() {
             row.index_value = Math.cos(angleRad);
         },
 
-        // 초기 데이터
+        // 입력 모드: 'revolution' (회전수) 또는 'velocity' (유속 직접 입력)
+        velocityInputMode: 'revolution',
+
+        // 입력 모드 전환
+        toggleVelocityInputMode() {
+            this.velocityInputMode = this.velocityInputMode === 'revolution' ? 'velocity' : 'revolution';
+            // 모든 행 재계산
+            this.rows.forEach((row, index) => this.calculateVelocity(index));
+        },
+
+        // 초기 데이터 (v_02d, v_06d, v_08d: 유속 직접 입력용 필드)
         rows: [
-            { id: 1, distance: 0, depth: 0, stage: null, method: 'LEW', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 2, distance: 1.5, depth: 0.45, stage: null, method: '1', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: 42, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 3, distance: 3.0, depth: 0.72, stage: null, method: '2', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 65, t_02d: 60, n_06d: null, t_06d: null, n_08d: 38, t_08d: 60, velocity: 0 },
-            { id: 4, distance: 4.5, depth: 1.20, stage: null, method: '3', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 82, t_02d: 60, n_06d: 75, t_06d: 60, n_08d: 45, t_08d: 60, velocity: 0 },
-            { id: 5, distance: 6.0, depth: 1.35, stage: null, method: '3', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 95, t_02d: 60, n_06d: 88, t_06d: 60, n_08d: 52, t_08d: 60, velocity: 0 },
-            { id: 6, distance: 7.5, depth: 0.85, stage: null, method: '2', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 70, t_02d: 60, n_06d: null, t_06d: null, n_08d: 42, t_08d: 60, velocity: 0 },
-            { id: 7, distance: 9.0, depth: 0.50, stage: null, method: '1', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null, velocity: 0 },
-            { id: 8, distance: 10.5, depth: 0, stage: null, method: 'REW', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, velocity: 0 },
+            { id: 1, distance: 0, depth: 0, stage: null, method: 'LEW', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 2, distance: 1.5, depth: 0.45, stage: null, method: '1', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: 42, t_06d: 60, n_08d: null, t_08d: null, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 3, distance: 3.0, depth: 0.72, stage: null, method: '2', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 65, t_02d: 60, n_06d: null, t_06d: null, n_08d: 38, t_08d: 60, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 4, distance: 4.5, depth: 1.20, stage: null, method: '3', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 82, t_02d: 60, n_06d: 75, t_06d: 60, n_08d: 45, t_08d: 60, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 5, distance: 6.0, depth: 1.35, stage: null, method: '3', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 95, t_02d: 60, n_06d: 88, t_06d: 60, n_08d: 52, t_08d: 60, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 6, distance: 7.5, depth: 0.85, stage: null, method: '2', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: 70, t_02d: 60, n_06d: null, t_06d: null, n_08d: 42, t_08d: 60, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 7, distance: 9.0, depth: 0.50, stage: null, method: '1', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: 45, t_06d: 60, n_08d: null, t_08d: null, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
+            { id: 8, distance: 10.5, depth: 0, stage: null, method: 'REW', meter_id: 'M1', angle_deg: 0, index_value: 1.0, n_02d: null, t_02d: null, n_06d: null, t_06d: null, n_08d: null, t_08d: null, v_02d: null, v_06d: null, v_08d: null, velocity: 0 },
         ],
 
         get totalWidth() {
@@ -1015,6 +1149,7 @@ function dataInputGrid() {
                 n_02d: null, t_02d: null,
                 n_06d: null, t_06d: null,
                 n_08d: null, t_08d: null,
+                v_02d: null, v_06d: null, v_08d: null,  // 유속 직접 입력용
                 velocity: 0
             });
             this.isSaved = false;
@@ -1060,33 +1195,64 @@ function dataInputGrid() {
             // index (각보정) 값: 기본 1.0, 범위 0.6~1.0
             const indexValue = parseFloat(row.index_value) || 1.0;
 
-            // 유속 계산: V = a + b * (N/T)
-            const calcV = (n, t) => {
+            // 유속 계산 함수: 회전수 → 유속 (V = a + b * (N/T))
+            const calcVFromRevolution = (n, t) => {
                 if (!n || !t || t === 0) return 0;
                 return a + b * (n / t);
             };
 
+            // 유속 직접 입력값 가져오기
+            const getDirectVelocity = (v) => {
+                return parseFloat(v) || 0;
+            };
+
             let velocity = 0;
 
-            switch (row.method) {
-                case '1': // 1점법: V = V_0.6D
-                    velocity = calcV(row.n_06d, row.t_06d);
-                    break;
-                case '2': // 2점법: V = (V_0.2D + V_0.8D) / 2
-                    const v02 = calcV(row.n_02d, row.t_02d);
-                    const v08 = calcV(row.n_08d, row.t_08d);
-                    if (v02 && v08) velocity = (v02 + v08) / 2;
-                    break;
-                case '3': // 3점법: V = (V_0.2D + 2*V_0.6D + V_0.8D) / 4
-                    const v02_3 = calcV(row.n_02d, row.t_02d);
-                    const v06_3 = calcV(row.n_06d, row.t_06d);
-                    const v08_3 = calcV(row.n_08d, row.t_08d);
-                    if (v02_3 && v06_3 && v08_3) {
-                        velocity = (v02_3 + 2 * v06_3 + v08_3) / 4;
-                    }
-                    break;
-                default:
-                    velocity = 0;
+            // 입력 모드에 따라 다르게 처리
+            if (this.velocityInputMode === 'velocity') {
+                // 유속 직접 입력 모드
+                switch (row.method) {
+                    case '1': // 1점법: V = V_0.6D
+                        velocity = getDirectVelocity(row.v_06d);
+                        break;
+                    case '2': // 2점법: V = (V_0.2D + V_0.8D) / 2
+                        const v02_direct = getDirectVelocity(row.v_02d);
+                        const v08_direct = getDirectVelocity(row.v_08d);
+                        if (v02_direct && v08_direct) velocity = (v02_direct + v08_direct) / 2;
+                        break;
+                    case '3': // 3점법: V = (V_0.2D + 2*V_0.6D + V_0.8D) / 4
+                        const v02_3_direct = getDirectVelocity(row.v_02d);
+                        const v06_3_direct = getDirectVelocity(row.v_06d);
+                        const v08_3_direct = getDirectVelocity(row.v_08d);
+                        if (v02_3_direct && v06_3_direct && v08_3_direct) {
+                            velocity = (v02_3_direct + 2 * v06_3_direct + v08_3_direct) / 4;
+                        }
+                        break;
+                    default:
+                        velocity = 0;
+                }
+            } else {
+                // 회전수 입력 모드 (기본)
+                switch (row.method) {
+                    case '1': // 1점법: V = V_0.6D
+                        velocity = calcVFromRevolution(row.n_06d, row.t_06d);
+                        break;
+                    case '2': // 2점법: V = (V_0.2D + V_0.8D) / 2
+                        const v02 = calcVFromRevolution(row.n_02d, row.t_02d);
+                        const v08 = calcVFromRevolution(row.n_08d, row.t_08d);
+                        if (v02 && v08) velocity = (v02 + v08) / 2;
+                        break;
+                    case '3': // 3점법: V = (V_0.2D + 2*V_0.6D + V_0.8D) / 4
+                        const v02_3 = calcVFromRevolution(row.n_02d, row.t_02d);
+                        const v06_3 = calcVFromRevolution(row.n_06d, row.t_06d);
+                        const v08_3 = calcVFromRevolution(row.n_08d, row.t_08d);
+                        if (v02_3 && v06_3 && v08_3) {
+                            velocity = (v02_3 + 2 * v06_3 + v08_3) / 4;
+                        }
+                        break;
+                    default:
+                        velocity = 0;
+                }
             }
 
             // index (각보정) 적용: V_corrected = V × cos(θ)
@@ -1193,6 +1359,8 @@ function dataInputGrid() {
                         distance: distance,
                         depth: depth,
                         method: method,
+                        meter_id: this.defaultMeterId,
+                        angle_deg: 0,
                         index_value: parseFloat(values[2]) || 1.0,
                         n_02d: parseFloat(values[3]) || null,
                         t_02d: parseFloat(values[4]) || null,
@@ -1200,6 +1368,9 @@ function dataInputGrid() {
                         t_06d: parseFloat(values[6]) || null,
                         n_08d: parseFloat(values[7]) || null,
                         t_08d: parseFloat(values[8]) || null,
+                        v_02d: parseFloat(values[9]) || null,  // 유속 직접 입력용
+                        v_06d: parseFloat(values[10]) || null,
+                        v_08d: parseFloat(values[11]) || null,
                         velocity: 0
                     });
                 }
@@ -1215,7 +1386,7 @@ function dataInputGrid() {
 
         exportCSV() {
             const BOM = '\uFEFF';
-            let csv = BOM + '거리(m),수심(m),index(각보정),측정법,N_0.2D,T_0.2D,N_0.6D,T_0.6D,N_0.8D,T_0.8D,유속(m/s)\n';
+            let csv = BOM + '거리(m),수심(m),index(각보정),측정법,N_0.2D,T_0.2D,N_0.6D,T_0.6D,N_0.8D,T_0.8D,V_0.2D,V_0.6D,V_0.8D,평균유속(m/s)\n';
 
             this.rows.forEach(row => {
                 csv += [
@@ -1229,6 +1400,9 @@ function dataInputGrid() {
                     row.t_06d || '',
                     row.n_08d || '',
                     row.t_08d || '',
+                    row.v_02d || '',  // 유속 직접 입력값
+                    row.v_06d || '',
+                    row.v_08d || '',
                     row.velocity ? row.velocity.toFixed(3) : ''
                 ].join(',') + '\n';
             });
@@ -1257,6 +1431,7 @@ function dataInputGrid() {
                 rows: this.rows,
                 meters: this.meters,
                 angleInputMode: this.angleInputMode,
+                velocityInputMode: this.velocityInputMode,  // 회전수/유속 직접 입력 모드
                 extraData: this.extraData  // 위치/수질 정보 포함
             };
 
